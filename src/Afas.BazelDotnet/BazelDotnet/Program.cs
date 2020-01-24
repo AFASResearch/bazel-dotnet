@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using System.Xml.Linq;
 using Afas.BazelDotnet.Nuget;
 using Afas.BazelDotnet.Project;
-using Microsoft.Extensions.CommandLineUtils;
+using McMaster.Extensions.CommandLineUtils;
 
 namespace Afas.BazelDotnet
 {
@@ -74,21 +74,32 @@ namespace Afas.BazelDotnet
 
     private static async Task GenerateDependencies(string workspace, string output)
     {
-      var packagesProps = XElement.Load(Path.Combine(workspace, "Packages.Props"));
+      (string, string)[] deps;
 
-      var deps = packagesProps
-        .Element("ItemGroup")
-        .Elements("PackageReference")
-        .Select(el => (el.Attribute("Update")?.Value, el.Attribute("Version")?.Value))
-        .Where(Included)
-        // This one is upgrade due to the FrameworkReference in Afas.Cqrs
-        .Append(("microsoft.aspnetcore.http.features", "3.1.0"))
-        .ToArray();
+      var propsFile = Path.Combine(workspace, "Packages.Props");
+      if(File.Exists(propsFile))
+      {
+        var packagesProps = XElement.Load(propsFile);
 
-      bool Included((string update, string version) arg) =>
-        !string.IsNullOrEmpty(arg.update) &&
-        !string.IsNullOrEmpty(arg.version) &&
-        !arg.version.EndsWith("-local-dev", StringComparison.OrdinalIgnoreCase);
+        deps = packagesProps
+          .Element("ItemGroup")
+          .Elements("PackageReference")
+          .Select(el => (el.Attribute("Update")?.Value, el.Attribute("Version")?.Value))
+          .Where(Included)
+          // This one is upgrade due to the FrameworkReference in Afas.Cqrs
+          .Append(("microsoft.aspnetcore.http.features", "3.1.0"))
+          .ToArray();
+      }
+      else
+      {
+        deps = Directory.EnumerateFiles(workspace, "*.csproj", SearchOption.AllDirectories)
+          .Select(XDocument.Load)
+          .SelectMany(f => f.Descendants("PackageReference"))
+          .Select(p => (p.Attribute("Include")?.Value, p.Attribute("Version")?.Value))
+          .Where(t => t.Item1 != null && t.Item2 != null)
+          .Distinct()
+          .ToArray();
+      }
 
       var content = await new NugetDependencyFileGenerator(workspace, new AfasPackageSourceResolver())
         .Generate("netcoreapp3.1", "win", deps)
@@ -97,6 +108,11 @@ namespace Afas.BazelDotnet
       File.WriteAllText(
         Path.Combine(workspace, output),
         $"load(\":nuget.bzl\", \"nuget_package\")\r\n\r\ndef deps():\r\n{content}");
+
+      bool Included((string update, string version) arg) =>
+        !string.IsNullOrEmpty(arg.update) &&
+        !string.IsNullOrEmpty(arg.version) &&
+        !arg.version.EndsWith("-local-dev", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void GenerateBuildFiles(string workspace)
