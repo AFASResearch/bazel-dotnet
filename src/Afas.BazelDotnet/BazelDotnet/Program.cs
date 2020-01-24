@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using Afas.BazelDotnet.Nuget;
+using Afas.BazelDotnet.Project;
 using Microsoft.Extensions.CommandLineUtils;
 
 namespace Afas.BazelDotnet
@@ -25,6 +26,7 @@ namespace Afas.BazelDotnet
       app.OnExecute(async () =>
       {
         await GenerateDependencies(workspace.Value, "deps.bzl").ConfigureAwait(false);
+        GenerateBuildFiles(workspace.Value);
         return 0;
       });
 
@@ -51,7 +53,7 @@ namespace Afas.BazelDotnet
           command.HelpOption("-?|-h|--help");
           repoCmd.OnExecute(async () =>
           {
-            // TODO implement
+            GenerateBuildFiles(workspace.Value);
             return 0;
           });
         });
@@ -95,6 +97,11 @@ namespace Afas.BazelDotnet
       File.WriteAllText(
         Path.Combine(workspace, output),
         $"load(\":nuget.bzl\", \"nuget_package\")\r\n\r\ndef deps():\r\n{content}");
+    }
+
+    private static void GenerateBuildFiles(string workspace)
+    {
+      new CsProjBuildFileGenerator(workspace).GlobAllProjects();
     }
   }
 }

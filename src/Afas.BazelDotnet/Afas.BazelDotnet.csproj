@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Afas.BazelDotnet.Nuget\Afas.BazelDotnet.Nuget.csproj" />
+    <ProjectReference Include="..\Afas.BazelDotnet.Project\Afas.BazelDotnet.Project.csproj" />
   </ItemGroup>
 
 </Project>

@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Afas.BazelDotnet", "src\Afa
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Afas.BazelDotnet.Nuget", "src\Afas.BazelDotnet.Nuget\Afas.BazelDotnet.Nuget.csproj", "{4E86357C-40B0-484A-8761-C2D02A526FE1}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Afas.BazelDotnet.Project", "src\Afas.BazelDotnet.Project\Afas.BazelDotnet.Project.csproj", "{449D3099-A5EE-40E1-9579-45B48050135D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{4E86357C-40B0-484A-8761-C2D02A526FE1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4E86357C-40B0-484A-8761-C2D02A526FE1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4E86357C-40B0-484A-8761-C2D02A526FE1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{449D3099-A5EE-40E1-9579-45B48050135D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{449D3099-A5EE-40E1-9579-45B48050135D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{449D3099-A5EE-40E1-9579-45B48050135D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{449D3099-A5EE-40E1-9579-45B48050135D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
