@@ -107,7 +107,7 @@ namespace Afas.BazelDotnet
 
       File.WriteAllText(
         Path.Combine(workspace, output),
-        $"load(\":devtools/bazel/nuget.bzl\", \"nuget_package\")\r\n\r\ndef deps():\r\n{content}");
+        $"load(\":nuget.bzl\", \"nuget_package\")\r\n\r\ndef deps():\r\n{content}");
 
       bool Included((string update, string version) arg) =>
         !string.IsNullOrEmpty(arg.update) &&
