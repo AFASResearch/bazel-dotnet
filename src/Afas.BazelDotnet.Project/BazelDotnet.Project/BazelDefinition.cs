@@ -114,7 +114,7 @@ resources.append(""{name}"")";
 
       if(Type.Equals("core_nunit3_test"))
       {
-        result += "load(\"//:test.bzl\", \"core_nunit3_test\")\n";
+        result += "load(\"//:devtools/bazel/test.bzl\", \"core_nunit3_test\")\n";
       }
 
       return result;

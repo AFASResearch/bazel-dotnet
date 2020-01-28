@@ -25,7 +25,7 @@ namespace Afas.BazelDotnet
 
       app.OnExecute(async () =>
       {
-        await GenerateDependencies(workspace.Value, "deps.bzl").ConfigureAwait(false);
+        await GenerateDependencies(workspace.Value, "devtools/bazel/deps.bzl").ConfigureAwait(false);
         GenerateBuildFiles(workspace.Value);
         return 0;
       });
@@ -107,7 +107,7 @@ namespace Afas.BazelDotnet
 
       File.WriteAllText(
         Path.Combine(workspace, output),
-        $"load(\":nuget.bzl\", \"nuget_package\")\r\n\r\ndef deps():\r\n{content}");
+        $"load(\":devtools/bazel/nuget.bzl\", \"nuget_package\")\r\n\r\ndef deps():\r\n{content}");
 
       bool Included((string update, string version) arg) =>
         !string.IsNullOrEmpty(arg.update) &&
