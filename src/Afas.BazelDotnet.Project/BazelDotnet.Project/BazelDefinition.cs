@@ -122,18 +122,13 @@ resources.append(""{name}"")";
 
     private string RenderData()
     {
-      // TODO implement glob when needed
-      var d = Data.Where(d => !d.Contains("*")).ToArray();
-
-      if(!d.Any())
+      if(!Data.Any())
       {
         return string.Empty;
       }
 
       return $@"
-  data = [
-    {string.Join(",\n    ", d.Select(Quote))}
-  ],";
+  data = glob([{string.Join(", ", Data.Select(Quote))}], exclude = [""**/obj/**"", ""**/bin/**""]),";
     }
 
     private string WriteRule()
