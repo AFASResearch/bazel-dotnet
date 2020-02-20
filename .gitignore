@@ -9,3 +9,6 @@ obj/
 /bazel-bin
 /bazel-bazel-dotnet
 /bazel-testlogs
+
+tools
+publish
