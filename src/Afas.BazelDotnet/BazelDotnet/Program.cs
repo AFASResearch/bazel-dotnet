@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -20,66 +21,43 @@ namespace Afas.BazelDotnet
       };
 
       app.HelpOption("-?|-h|--help");
-      
-      var workspace = app.Argument("workspace", "The path to the workspace root");
 
-      app.OnExecute(async () =>
+      app.Command("dependencies", repoCmd =>
       {
-        await GenerateDependencies(workspace.Value, "devtools/bazel/deps.bzl").ConfigureAwait(false);
-        GenerateBuildFiles(workspace.Value);
-        return 0;
+        var packageProps = repoCmd.Argument("packageProps", "The path to the Packages.Props file");
+        var nugetConfig = repoCmd.Argument("nugetConfig", "The path to the Packages.Props file");
+        var depsBzl = repoCmd.Argument("depsBzl", "The output filename ending in .bzl");
+
+        repoCmd.OnExecute(async () =>
+        {
+          var packagePropsFilePath = Path.Combine(Directory.GetCurrentDirectory(), packageProps.Value);
+          var nugetConfigFilePath = Path.Combine(Directory.GetCurrentDirectory(), nugetConfig.Value);
+
+          await GenerateDependencies(packagePropsFilePath, nugetConfigFilePath, depsBzl.Value).ConfigureAwait(false);
+          return 0;
+        });
       });
 
-      app.Command("generate", command =>
-      {
-        command.Description = "List objects in the repositories";
-        command.HelpOption("-?|-h|--help");
-
-        command.Command("dependencies", repoCmd =>
-        {
-          command.HelpOption("-?|-h|--help");
-
-          var output = app.Argument("output", "The output filename ending in .bzl");
-
-          repoCmd.OnExecute(async () =>
-          {
-            await GenerateDependencies(workspace.Value, output.Value).ConfigureAwait(false);
-            return 0;
-          });
-        });
-
-        command.Command("projects", repoCmd =>
-        {
-          command.HelpOption("-?|-h|--help");
-          repoCmd.OnExecute(async () =>
-          {
-            GenerateBuildFiles(workspace.Value);
-            return 0;
-          });
-        });
-
-        command.Command("workspace", repoCmd =>
-        {
-          command.HelpOption("-?|-h|--help");
-          repoCmd.OnExecute(async () =>
-          {
-            // TODO implement
-            return 0;
-          });
-        });
-      });
+      // app.Command("projects", repoCmd =>
+      // {
+      //   repoCmd.HelpOption("-?|-h|--help");
+      //   repoCmd.OnExecute(async () =>
+      //   {
+      //     GenerateBuildFiles(input.Value);
+      //     return 0;
+      //   });
+      // });
 
       app.Execute(args);
     }
 
-    private static async Task GenerateDependencies(string workspace, string output)
+    private static async Task GenerateDependencies(string packageProps, string nugetConfig, string depsBzl)
     {
       (string, string)[] deps;
 
-      var propsFile = Path.Combine(workspace, "Packages.Props");
-      if(File.Exists(propsFile))
+      if(File.Exists(packageProps))
       {
-        var packagesProps = XElement.Load(propsFile);
+        var packagesProps = XElement.Load(packageProps);
 
         deps = packagesProps
           .Element("ItemGroup")
@@ -92,7 +70,7 @@ namespace Afas.BazelDotnet
       }
       else
       {
-        deps = Directory.EnumerateFiles(workspace, "*.csproj", SearchOption.AllDirectories)
+        deps = Directory.EnumerateFiles(packageProps, "*.csproj", SearchOption.AllDirectories)
           .Select(XDocument.Load)
           .SelectMany(f => f.Descendants("PackageReference"))
           .Select(p => (p.Attribute("Include")?.Value, p.Attribute("Version")?.Value))
@@ -101,12 +79,12 @@ namespace Afas.BazelDotnet
           .ToArray();
       }
 
-      var content = await new NugetDependencyFileGenerator(workspace, new AfasPackageSourceResolver())
+      var content = await new NugetDependencyFileGenerator(nugetConfig, new AfasPackageSourceResolver())
         .Generate("netcoreapp3.1", "win", deps)
         .ConfigureAwait(false);
 
       File.WriteAllText(
-        Path.Combine(workspace, output),
+        depsBzl,
         $"load(\":nuget.bzl\", \"nuget_package\")\r\n\r\ndef deps():\r\n{content}");
 
       bool Included((string update, string version) arg) =>

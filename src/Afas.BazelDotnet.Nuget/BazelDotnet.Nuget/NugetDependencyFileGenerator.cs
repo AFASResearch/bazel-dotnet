@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using NuGet.Common;
@@ -10,20 +12,20 @@ namespace Afas.BazelDotnet.Nuget
 {
   public class NugetDependencyFileGenerator
   {
-    private readonly string _workspacePath;
+    private readonly string _nugetConfig;
     private readonly IPackageSourceResolver _packageSourceResolver;
 
-    public NugetDependencyFileGenerator(string workspacePath, IPackageSourceResolver packageSourceResolver = null)
+    public NugetDependencyFileGenerator(string nugetConfig, IPackageSourceResolver packageSourceResolver = null)
     {
-      _workspacePath = workspacePath;
+      _nugetConfig = nugetConfig;
       _packageSourceResolver = packageSourceResolver;
     }
 
     public async Task<string> Generate(string targetFramework, string targetRuntime, IEnumerable<(string package, string version)> packageReferences)
     {
       ILogger logger = new ConsoleLogger();
-      var settings = Settings.LoadDefaultSettings(_workspacePath, null, new XPlatMachineWideSetting());
-      
+      var settings = Settings.LoadSpecificSettings(Path.GetDirectoryName(_nugetConfig), Path.GetFileName(_nugetConfig));
+
       // ~/.nuget/packages
 
       using(var cache = new SourceCacheContext())
@@ -34,7 +36,7 @@ namespace Afas.BazelDotnet.Nuget
         {
           dependencyGraphResolver.AddPackageReference(v.package, v.version);
         }
-        
+
         var dependencyGraph = await dependencyGraphResolver.ResolveGraph(targetFramework, targetRuntime).ConfigureAwait(false);
         var localPackages = await dependencyGraphResolver.ResolveLocalPackages(dependencyGraph).ConfigureAwait(false);
 
