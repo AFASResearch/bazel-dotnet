@@ -8,14 +8,9 @@ namespace Afas.BazelDotnet.Project
 {
   internal class CsProjectFileDefinition
   {
-    private string _slnBasePath;
-    private string _projectFilePath;
-
-    public CsProjectFileDefinition(string projectFilePath, string slnBasePath)
+    public CsProjectFileDefinition(string projectFilePath)
     {
-      _slnBasePath = slnBasePath;
-      _projectFilePath = projectFilePath;
-      RelativeFilePath = Path.GetRelativePath(slnBasePath, projectFilePath);
+      RelativeFilePath = projectFilePath;
       PackageReferences = new List<string>();
       ProjectReference = new List<string>();
       EmbeddedResources = new List<EmbeddedResourceDefinition>();
@@ -63,9 +58,7 @@ namespace Afas.BazelDotnet.Project
       foreach(var descendant in document.Descendants("ProjectReference"))
       {
         var include = descendant.Attribute("Include").Value;
-
-        AddProjectReference(
-          Path.GetFullPath(Path.Combine(Path.GetDirectoryName(_projectFilePath), include)));
+        AddProjectReference(Path.Combine(Path.GetDirectoryName(RelativeFilePath), include));
       }
 
       foreach(var resource in document.Descendants("EmbeddedResource"))
@@ -106,7 +99,10 @@ namespace Afas.BazelDotnet.Project
     private void AddProjectReference(string csprojFilePath)
     {
       var name = Path.GetDirectoryName(
-          Path.GetRelativePath(_slnBasePath, csprojFilePath))
+          // Ugly but works. c# does not seem to provide a Path.Normalize to rid of ../
+          Path.GetRelativePath(
+            Directory.GetCurrentDirectory(),
+            Path.GetFullPath(csprojFilePath)))
         .Replace('\\', '/');
 
       ProjectReference.Add($"//{name}:{Path.GetFileNameWithoutExtension(csprojFilePath)}");

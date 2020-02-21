@@ -1,5 +1,5 @@
 using System;
-using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -38,27 +38,18 @@ namespace Afas.BazelDotnet
         });
       });
 
-      app.Command("projects", repoCmd =>
+      app.Command("projects", projectsCmd =>
       {
-        var slnBasePath = repoCmd.Argument("slnBasePath", "The path to the base of the solution");
-        repoCmd.HelpOption("-?|-h|--help");
-        repoCmd.OnExecute(async () =>
+        projectsCmd.ResponseFileHandling = ResponseFileHandling.ParseArgsAsLineSeparated;
+
+        var projects = projectsCmd.Option("-p|--project", "Specifiy multiple relative csproj file paths", CommandOptionType.MultipleValue);
+        projectsCmd.HelpOption("-?|-h|--help");
+        projectsCmd.OnExecute(async () =>
         {
-          GenerateBuildFiles(slnBasePath.Value);
+          GenerateBuildFiles(projects.Values);
           return 0;
         });
       });
-
-      // app.Command("project", repoCmd =>
-      // {
-      //   var csProjFilePath = repoCmd.Argument("csProjFilePath", "The path to the .csproj file");
-      //   repoCmd.HelpOption("-?|-h|--help");
-      //   repoCmd.OnExecute(async () =>
-      //   {
-      //     GenerateBuildFiles(csProjFilePath.Value);
-      //     return 0;
-      //   });
-      // });
 
       if(!args.Any())
       {
@@ -111,9 +102,9 @@ namespace Afas.BazelDotnet
         !arg.version.EndsWith("-local-dev", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void GenerateBuildFiles(string workspace)
+    private static void GenerateBuildFiles(List<string> projects)
     {
-      new CsProjBuildFileGeneratorLegacy(workspace).GlobAllProjects();
+      new CsProjBuildFileGenerator(projects).GlobAllProjects();
     }
   }
 }
