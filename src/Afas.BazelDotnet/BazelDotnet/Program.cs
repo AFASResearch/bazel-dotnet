@@ -60,6 +60,11 @@ namespace Afas.BazelDotnet
       //   });
       // });
 
+      if(!args.Any())
+      {
+        throw new Exception("Provide a 'dependencies' or 'projects' command");
+      }
+
       app.Execute(args);
     }
 
