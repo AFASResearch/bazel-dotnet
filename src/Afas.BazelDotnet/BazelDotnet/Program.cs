@@ -40,26 +40,31 @@ namespace Afas.BazelDotnet
 
       app.Command("projects", repoCmd =>
       {
-        var slnBasePath = repoCmd.Argument("slnBasePath", "The path to the base of the solution");
+        var pathOption = repoCmd.Option("-p|--path", "The path to the workspace root", CommandOptionType.SingleOrNoValue);
+        string path;
+
+        if(pathOption.HasValue())
+        {
+          path = pathOption.Value();
+        }
+        else
+        {
+          path = Environment.GetEnvironmentVariable("BUILD_WORKSPACE_DIRECTORY");
+
+          if(string.IsNullOrEmpty(path))
+          {
+            throw new ArgumentException("Environment variable BUILD_WORKSPACE_DIRECTORY is missing");
+          }
+        }
+
         repoCmd.HelpOption("-?|-h|--help");
         repoCmd.OnExecute(async () =>
         {
-          GenerateBuildFiles(slnBasePath.Value);
+          GenerateBuildFiles(path);
           return 0;
         });
       });
-
-      // app.Command("project", repoCmd =>
-      // {
-      //   var csProjFilePath = repoCmd.Argument("csProjFilePath", "The path to the .csproj file");
-      //   repoCmd.HelpOption("-?|-h|--help");
-      //   repoCmd.OnExecute(async () =>
-      //   {
-      //     GenerateBuildFiles(csProjFilePath.Value);
-      //     return 0;
-      //   });
-      // });
-
+      
       if(!args.Any())
       {
         app.ShowHelp();
@@ -113,7 +118,7 @@ namespace Afas.BazelDotnet
 
     private static void GenerateBuildFiles(string workspace)
     {
-      new CsProjBuildFileGeneratorLegacy(workspace).GlobAllProjects();
+      new CsProjBuildFileGenerator(workspace).GlobAllProjects();
     }
   }
 }
