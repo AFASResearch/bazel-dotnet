@@ -38,12 +38,24 @@ namespace Afas.BazelDotnet
         });
       });
 
-      // app.Command("projects", repoCmd =>
+      app.Command("projects", repoCmd =>
+      {
+        var slnBasePath = repoCmd.Argument("slnBasePath", "The path to the base of the solution");
+        repoCmd.HelpOption("-?|-h|--help");
+        repoCmd.OnExecute(async () =>
+        {
+          GenerateBuildFiles(slnBasePath.Value);
+          return 0;
+        });
+      });
+
+      // app.Command("project", repoCmd =>
       // {
+      //   var csProjFilePath = repoCmd.Argument("csProjFilePath", "The path to the .csproj file");
       //   repoCmd.HelpOption("-?|-h|--help");
       //   repoCmd.OnExecute(async () =>
       //   {
-      //     GenerateBuildFiles(input.Value);
+      //     GenerateBuildFiles(csProjFilePath.Value);
       //     return 0;
       //   });
       // });
@@ -95,7 +107,7 @@ namespace Afas.BazelDotnet
 
     private static void GenerateBuildFiles(string workspace)
     {
-      new CsProjBuildFileGenerator(workspace).GlobAllProjects();
+      new CsProjBuildFileGeneratorLegacy(workspace).GlobAllProjects();
     }
   }
 }
