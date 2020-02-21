@@ -62,7 +62,8 @@ namespace Afas.BazelDotnet
 
       if(!args.Any())
       {
-        throw new Exception("Provide a 'dependencies' or 'projects' command");
+        app.ShowHelp();
+        throw new Exception("No arguments provided");
       }
 
       app.Execute(args);
