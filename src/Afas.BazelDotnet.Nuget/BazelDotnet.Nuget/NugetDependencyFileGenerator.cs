@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -21,7 +22,8 @@ namespace Afas.BazelDotnet.Nuget
       _packageSourceResolver = packageSourceResolver;
     }
 
-    public async Task<string> Generate(string targetFramework, string targetRuntime, IEnumerable<(string package, string version)> packageReferences)
+    private async Task<IReadOnlyCollection<WorkspaceEntry>> CreateEntries(string targetFramework, string targetRuntime,
+      IEnumerable<(string package, string version)> packageReferences)
     {
       ILogger logger = new ConsoleLogger();
       var settings = Settings.LoadSpecificSettings(Path.GetDirectoryName(_nugetConfig), Path.GetFileName(_nugetConfig));
@@ -49,12 +51,57 @@ namespace Afas.BazelDotnet.Nuget
         // Then we use them to validate deps actually contain content
         workspaceEntryBuilder.WithLocalPackages(resolved);
 
-        var entries = resolved.SelectMany(workspaceEntryBuilder.Build)
+        return resolved.SelectMany(workspaceEntryBuilder.Build)
           .Where(entry => !SdkList.Dlls.Contains(entry.PackageIdentity.Id.ToLower()))
-          .Select(entry => entry.Generate(indent: true));
-
-        return string.Join(string.Empty, entries);
+          .ToArray();
       }
+    }
+
+    public async Task<string> GenerateDeps(string targetFramework, string targetRuntime, IEnumerable<(string package, string version)> packageReferences)
+    {
+      var entries = await CreateEntries(targetFramework, targetRuntime, packageReferences).ConfigureAwait(false);
+      return string.Join(string.Empty, entries.Select(entry => entry.Generate(indent: true)));
+    }
+
+    public async Task WriteRepository(string targetFramework, string targetRuntime, IEnumerable<(string package, string version)> packageReferences)
+    {
+      var entries = await CreateEntries(targetFramework, targetRuntime, packageReferences).ConfigureAwait(false);
+
+      var symlinks = new HashSet<(string, string)>();
+
+      foreach(var entryGroup in entries.GroupBy(e => e.Name, StringComparer.OrdinalIgnoreCase))
+      {
+        var id = entryGroup.Key.ToLower();
+
+        var content = string.Join("\n", entryGroup.Where(e => e.CoreLib.ContainsKey("netcoreapp3.1")).Select(e => $@"
+core_import_library(
+  name = ""netcoreapp3.1_core"",
+  src = ""{e.PackageIdentity.Version}/{e.CoreLib["netcoreapp3.1"]}"",
+  deps = [
+    {string.Join(",\n    ", e.Core_Deps.ContainsKey("netcoreapp3.1") ? e.Core_Deps["netcoreapp3.1"].Select(Fix) : Array.Empty<string>())}
+  ],
+)
+"));
+        var prefix = @"
+package(default_visibility = [ ""//visibility:public"" ])
+load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
+";
+
+        var filePath = $"{id}/BUILD";
+        (new FileInfo(filePath)).Directory.Create();
+        File.WriteAllText(filePath, prefix + content);
+
+        // Possibly link multiple versions
+        foreach(var entry in entryGroup)
+        {
+          symlinks.Add(($"{id}/{entry.PackageIdentity.Version}", entry.ExpandedPath));
+        }
+      }
+
+      File.WriteAllText("link.cmd", string.Join("\n", symlinks.Select(sl => $@"mklink /D ""{sl.Item1}"" ""{sl.Item2}""")));
+      Process.Start(new ProcessStartInfo("cmd.exe", "/C link.cmd")).WaitForExit();
+
+      string Fix(string s) => $@"""{s.Replace("//", "").Replace("@", "@nuget//")}""";
     }
   }
 }

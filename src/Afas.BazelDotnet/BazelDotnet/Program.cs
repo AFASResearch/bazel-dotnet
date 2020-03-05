@@ -38,29 +38,46 @@ namespace Afas.BazelDotnet
         });
       });
 
+      app.Command("repository", repoCmd =>
+      {
+        var packageProps = repoCmd.Argument("packageProps", "The path to the Packages.Props file");
+        var nugetConfig = repoCmd.Argument("nugetConfig", "The path to the Packages.Props file");
+
+        repoCmd.OnExecute(async () =>
+        {
+          var packagePropsFilePath = Path.Combine(Directory.GetCurrentDirectory(), packageProps.Value);
+          var nugetConfigFilePath = Path.Combine(Directory.GetCurrentDirectory(), nugetConfig.Value);
+
+          await WriteRepository(packagePropsFilePath, nugetConfigFilePath).ConfigureAwait(false);
+          return 0;
+        });
+      });
+
       app.Command("projects", repoCmd =>
       {
         var pathOption = repoCmd.Option("-p|--path", "The path to the workspace root", CommandOptionType.SingleOrNoValue);
-        string path;
-
-        if(pathOption.HasValue())
-        {
-          path = pathOption.Value();
-        }
-        else
-        {
-          path = Environment.GetEnvironmentVariable("BUILD_WORKSPACE_DIRECTORY");
-
-          if(string.IsNullOrEmpty(path))
-          {
-            throw new ArgumentException("Environment variable BUILD_WORKSPACE_DIRECTORY is missing");
-          }
-        }
-
+        var workspaceOption = repoCmd.Option("-w|--workspace", "The workspace to load nugets from", CommandOptionType.SingleOrNoValue);
+        
         repoCmd.HelpOption("-?|-h|--help");
         repoCmd.OnExecute(async () =>
         {
-          GenerateBuildFiles(path);
+          string path;
+
+          if(pathOption.HasValue())
+          {
+            path = pathOption.Value();
+          }
+          else
+          {
+            path = Environment.GetEnvironmentVariable("BUILD_WORKSPACE_DIRECTORY");
+
+            if(string.IsNullOrEmpty(path))
+            {
+              throw new ArgumentException("Environment variable BUILD_WORKSPACE_DIRECTORY is missing");
+            }
+          }
+
+          GenerateBuildFiles(path, workspaceOption.Value());
           return 0;
         });
       });
@@ -74,15 +91,13 @@ namespace Afas.BazelDotnet
       app.Execute(args);
     }
 
-    private static async Task GenerateDependencies(string packageProps, string nugetConfig, string depsBzl)
+    private static (string, string)[] ResolvePackages(string packageProps)
     {
-      (string, string)[] deps;
-
       if(File.Exists(packageProps))
       {
         var packagesProps = XElement.Load(packageProps);
 
-        deps = packagesProps
+        return packagesProps
           .Element("ItemGroup")
           .Elements("PackageReference")
           .Select(el => (el.Attribute("Update")?.Value, el.Attribute("Version")?.Value))
@@ -91,24 +106,14 @@ namespace Afas.BazelDotnet
           .Append(("microsoft.aspnetcore.http.features", "3.1.0"))
           .ToArray();
       }
-      else
-      {
-        deps = Directory.EnumerateFiles(packageProps, "*.csproj", SearchOption.AllDirectories)
-          .Select(XDocument.Load)
-          .SelectMany(f => f.Descendants("PackageReference"))
-          .Select(p => (p.Attribute("Include")?.Value, p.Attribute("Version")?.Value))
-          .Where(t => t.Item1 != null && t.Item2 != null)
-          .Distinct()
-          .ToArray();
-      }
 
-      var content = await new NugetDependencyFileGenerator(nugetConfig, new AfasPackageSourceResolver())
-        .Generate("netcoreapp3.1", "win", deps)
-        .ConfigureAwait(false);
-
-      File.WriteAllText(
-        depsBzl,
-        $"load(\":nuget.bzl\", \"nuget_package\")\r\n\r\ndef deps():\r\n{content}");
+      return Directory.EnumerateFiles(packageProps, "*.csproj", SearchOption.AllDirectories)
+        .Select(XDocument.Load)
+        .SelectMany(f => f.Descendants("PackageReference"))
+        .Select(p => (p.Attribute("Include")?.Value, p.Attribute("Version")?.Value))
+        .Where(t => t.Item1 != null && t.Item2 != null)
+        .Distinct()
+        .ToArray();
 
       bool Included((string update, string version) arg) =>
         !string.IsNullOrEmpty(arg.update) &&
@@ -116,9 +121,31 @@ namespace Afas.BazelDotnet
         !arg.version.EndsWith("-local-dev", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void GenerateBuildFiles(string workspace)
+    private static async Task WriteRepository(string packageProps, string nugetConfig)
     {
-      new CsProjBuildFileGenerator(workspace).GlobAllProjects();
+      (string, string)[] deps = ResolvePackages(packageProps);
+
+      await new NugetDependencyFileGenerator(nugetConfig, new AfasPackageSourceResolver())
+        .WriteRepository("netcoreapp3.1", "win", deps)
+        .ConfigureAwait(false);
+    }
+
+    private static async Task GenerateDependencies(string packageProps, string nugetConfig, string depsBzl)
+    {
+      (string, string)[] deps = ResolvePackages(packageProps);
+
+      var content = await new NugetDependencyFileGenerator(nugetConfig, new AfasPackageSourceResolver())
+        .GenerateDeps("netcoreapp3.1", "win", deps)
+        .ConfigureAwait(false);
+
+      File.WriteAllText(
+        depsBzl,
+        $"load(\":nuget.bzl\", \"nuget_package\")\r\n\r\ndef deps():\r\n{content}");
+    }
+
+    private static void GenerateBuildFiles(string workspace, string nugetWorkspace)
+    {
+      new CsProjBuildFileGenerator(workspace, nugetWorkspace).GlobAllProjects();
     }
   }
 }

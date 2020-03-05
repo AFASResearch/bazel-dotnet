@@ -9,10 +9,12 @@ namespace Afas.BazelDotnet.Project
   internal class BazelDefinitionBuilder
   {
     private readonly CsProjectFileDefinition _definition;
+    private readonly string _nugetWorkspace;
 
-    public BazelDefinitionBuilder(CsProjectFileDefinition definition)
+    public BazelDefinitionBuilder(CsProjectFileDefinition definition, string nugetWorkspace)
     {
       _definition = definition;
+      _nugetWorkspace = nugetWorkspace;
     }
 
     public BazelDefinition Build()
@@ -79,7 +81,14 @@ namespace Afas.BazelDotnet.Project
         var name = reference.ToLower();
         if(!name.Equals("afas.analyzers"))
         {
-          yield return $"@{reference.ToLower()}//:netcoreapp3.1_core";
+          if(string.IsNullOrEmpty(_nugetWorkspace))
+          {
+            yield return $"@{reference.ToLower()}//:netcoreapp3.1_core";
+          }
+          else
+          {
+            yield return $"@{_nugetWorkspace}//{reference.ToLower()}:netcoreapp3.1_core";
+          }
         }
       }
     }

@@ -22,7 +22,7 @@ namespace Afas.BazelDotnet.Nuget
     public WorkspaceEntry(PackageIdentity identity, string sha256, IEnumerable<PackageDependencyGroup> deps,
         IEnumerable<FrameworkSpecificGroup> libs, IEnumerable<FrameworkSpecificGroup> tools,
         IEnumerable<FrameworkSpecificGroup> references,
-        string mainFile, string variable, string packageSource = null, string name = null)
+        string mainFile, string variable, string packageSource = null, string name = null, string expandedPath = null)
     {
       PackageSource = packageSource;
       var netFrameworkTFMs = new string[]
@@ -38,6 +38,7 @@ namespace Afas.BazelDotnet.Nuget
       PackageIdentity = identity;
       Sha256 = sha256;
       Variable = variable;
+      ExpandedPath = expandedPath;
       Name = name ?? PackageIdentity.Id;
       var coreFrameworks = coreFrameworkTFMs.Select(x => NuGetFramework.Parse(x));
       var netFrameworks = netFrameworkTFMs.Select(x => NuGetFramework.Parse(x));
@@ -463,6 +464,9 @@ namespace Afas.BazelDotnet.Nuget
     public PackageIdentity PackageIdentity { get; set; }
     public string Sha256 { get; set; }
     public string Variable { get; set; }
+
+    public string ExpandedPath { get; }
+
     public IDictionary<string, string> CoreLib { get; set; }
     public IDictionary<string, string> NetLib { get; set; }
     public string MonoLib { get; set; }

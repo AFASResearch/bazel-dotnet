@@ -9,11 +9,13 @@ namespace Afas.BazelDotnet.Project
   public class CsProjBuildFileGenerator
   {
     private readonly string _workspace;
+    private readonly string _nugetWorkspace;
     private Dictionary<string, string> _files;
 
-    public CsProjBuildFileGenerator(string workspace)
+    public CsProjBuildFileGenerator(string workspace, string nugetWorkspace)
     {
       _workspace = workspace;
+      _nugetWorkspace = nugetWorkspace;
     }
 
     public void GlobAllProjects(string extension = "csproj")
@@ -26,7 +28,7 @@ namespace Afas.BazelDotnet.Project
       foreach(var projectFile in _files.Values)
       {
         var definition = FindAndParseProjectFile(_workspace, projectFile);
-        var bazelDefinition = new BazelDefinitionBuilder(definition).Build();
+        var bazelDefinition = new BazelDefinitionBuilder(definition, _nugetWorkspace).Build();
         File.WriteAllText(Path.Combine(Path.GetDirectoryName(projectFile), "BUILD"), bazelDefinition.Serialize());
       }
     }

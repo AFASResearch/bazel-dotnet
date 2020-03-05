@@ -158,7 +158,8 @@ namespace Afas.BazelDotnet.Nuget
               Array.Empty<FrameworkSpecificGroup>(),
               Array.Empty<FrameworkSpecificGroup>(), null, null,
               packageSource: source,
-              name: additionalDll);
+              name: additionalDll,
+              expandedPath: localPackage.LocalPackageSourceInfo.Package.ExpandedPath);
         }
 
         // Add a root package that refs all additional dlls and sources the main dll
@@ -171,14 +172,16 @@ namespace Afas.BazelDotnet.Nuget
             FilterSpecificDll(localPackage.RuntimeItemGroups, mainDll),
             localPackage.ToolItemGroups,
             Array.Empty<FrameworkSpecificGroup>(), null, null,
-            packageSource: source);
+            packageSource: source,
+            expandedPath: localPackage.LocalPackageSourceInfo.Package.ExpandedPath);
       }
       else
       {
         yield return new WorkspaceEntry(packageIdentity, sha256,
             //  TODO For now we pass runtime as deps. This should be different elements in bazel tasks
             depsGroups, localPackage.RuntimeItemGroups ?? localPackage.LibItemGroups, localPackage.ToolItemGroups, Array.Empty<FrameworkSpecificGroup>(), null, null,
-            packageSource: source);
+            packageSource: source,
+            expandedPath: localPackage.LocalPackageSourceInfo.Package.ExpandedPath);
       }
     }
 
