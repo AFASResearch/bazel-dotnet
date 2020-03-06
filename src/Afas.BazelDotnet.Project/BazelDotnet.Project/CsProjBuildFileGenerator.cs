@@ -29,7 +29,12 @@ namespace Afas.BazelDotnet.Project
       {
         var definition = FindAndParseProjectFile(_workspace, projectFile);
         var bazelDefinition = new BazelDefinitionBuilder(definition, _nugetWorkspace).Build();
-        File.WriteAllText(Path.Combine(Path.GetDirectoryName(projectFile), "BUILD"), bazelDefinition.Serialize());
+
+        var file = Path.Combine(Path.GetDirectoryName(projectFile), "BUILD");
+        using(var stream = new StreamWriter(File.Open(file, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None)))
+        {
+          stream.Write(bazelDefinition.Serialize());
+        }
       }
     }
 
