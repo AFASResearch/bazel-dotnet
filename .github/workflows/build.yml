@@ -18,12 +18,13 @@ jobs:
           dotnet-version: "3.1.100" # SDK Version to use.
 
       - name: Build solution
+        id: build
         run: dotnet publish BazelDotnet.sln --configuration Release
 
       - name: Zip publish
-        uses: edgarrc/action-7zip@v1.0.4
+        uses: actions/archive@master
         with:
-          args: 7z a ${{ github.ref }}.zip src/Afas.BazelDotnet/bin/Release/netcoreapp3.1/publish/* -r
+          args: zip -r ${{ github.ref }}.zip src/Afas.BazelDotnet/bin/Release/netcoreapp3.1/publish
 
       - name: Create Release
         id: create_release
