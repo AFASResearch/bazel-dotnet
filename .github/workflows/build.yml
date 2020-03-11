@@ -22,7 +22,8 @@ jobs:
 
       - name: Zip publish
         uses: edgarrc/action-7zip@v1.0.4
-        run: 7z a ${{ github.ref }}.zip src/Afas.BazelDotnet/bin/Release/netcoreapp3.1/publish/* -r
+        with:
+          args: 7z a ${{ github.ref }}.zip src/Afas.BazelDotnet/bin/Release/netcoreapp3.1/publish/* -r
 
       - name: Create Release
         id: create_release
