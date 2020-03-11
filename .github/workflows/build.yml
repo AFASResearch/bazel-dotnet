@@ -13,15 +13,20 @@ jobs:
         with:
           dotnet-version: "3.1.100" # SDK Version to use.
 
+      - name: Version tag
+        id: version
+        run: >
+          "::set-env name=TAG_VERSION::" + "${{ github.ref }}".Split("/")[-1]
+
       - name: Build solution
         id: build
         run: dotnet publish BazelDotnet.sln --configuration Release
 
       - name: Zip publish
-        run: 7z a publish.zip src/Afas.BazelDotnet/bin/Release/netcoreapp3.1/publish/.
+        run: 7z a ${{ env.TAG_VERSION }}.zip src/Afas.BazelDotnet/bin/Release/netcoreapp3.1/publish/.
 
       - name: Upload zip
         uses: actions/upload-artifact@v1
         with:
-          name: publish.zip
-          path: publish.zip
+          name: ${{ env.TAG_VERSION }}
+          path: ${{ env.TAG_VERSION }}.zip
