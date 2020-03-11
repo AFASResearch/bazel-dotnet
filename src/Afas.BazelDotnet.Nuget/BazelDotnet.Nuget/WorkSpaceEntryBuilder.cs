@@ -55,7 +55,19 @@ namespace Afas.BazelDotnet.Nuget
         var bestCompileGroup = collection.FindBestItemGroup(criteria,
             _conventions.Patterns.CompileRefAssemblies,
             _conventions.Patterns.CompileLibAssemblies);
-        var bestRuntimeGroup = collection.FindBestItemGroup(criteria, _conventions.Patterns.RuntimeAssemblies)
+
+        // The nunit3testadapter package publishes dll's in build/
+        var buildAssemblies = new PatternSet(_conventions.Properties, new []
+        {
+          new PatternDefinition("build/{tfm}/{any?}"),
+          new PatternDefinition("build/{assembly?}")
+        }, new []
+        {
+          new PatternDefinition("build/{tfm}/{assembly}"),
+          new PatternDefinition("build/{assembly}")
+        });
+
+        var bestRuntimeGroup = collection.FindBestItemGroup(criteria, _conventions.Patterns.RuntimeAssemblies, buildAssemblies)
                                // fallback to best compile group
                                ?? bestCompileGroup;
         var bestToolGroup = collection.FindBestItemGroup(criteria, _conventions.Patterns.ToolsAssemblies);
