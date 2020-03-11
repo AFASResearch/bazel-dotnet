@@ -29,6 +29,10 @@ jobs:
       - name: Zip publish
         run: 7z a ${{ env.TAG_VERSION }}.zip src/Afas.BazelDotnet/bin/Release/netcoreapp3.1/publish/.
 
+      - name: Get Hash
+        run: >
+          "::set-env name=ZIP_HASH::" + (Get-FileHash ${{ env.TAG_VERSION }}.zip).Hash.tolower()
+
       - name: Create Release
         id: create_release
         uses: actions/create-release@latest
@@ -39,6 +43,9 @@ jobs:
           release_name: Release ${{ env.TAG_VERSION }}
           draft: false
           prerelease: true
+          body: >
+            Zip: ${{ env.TAG_VERSION }}.zip
+            Hash: ${{ env.ZIP_HASH }}
 
       - name: Upload Release Asset
         id: upload-release-asset 
