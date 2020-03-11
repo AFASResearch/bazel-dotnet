@@ -18,10 +18,10 @@ jobs:
         run: dotnet publish BazelDotnet.sln --configuration Release
 
       - name: Zip publish
-        run: 7z a ${{ github.ref }}.zip src/Afas.BazelDotnet/bin/Release/netcoreapp3.1/publish/.
+        run: 7z a publish.zip src/Afas.BazelDotnet/bin/Release/netcoreapp3.1/publish/.
 
       - name: Upload zip
         uses: actions/upload-artifact@v1
         with:
-          name: ${{ github.ref }}.zip
-          path: ${{ github.ref }}.zip
+          name: publish.zip
+          path: publish.zip
