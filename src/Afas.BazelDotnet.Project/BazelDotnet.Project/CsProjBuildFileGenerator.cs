@@ -31,7 +31,7 @@ namespace Afas.BazelDotnet.Project
         var bazelDefinition = new BazelDefinitionBuilder(definition, _nugetWorkspace).Build();
 
         var file = Path.Combine(Path.GetDirectoryName(projectFile), "BUILD");
-        using(var stream = new StreamWriter(File.Open(file, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None)))
+        using(var stream = new StreamWriter(File.Open(file, FileMode.Create, FileAccess.ReadWrite, FileShare.None)))
         {
           stream.Write(bazelDefinition.Serialize());
         }
