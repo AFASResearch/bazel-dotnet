@@ -80,6 +80,12 @@ core_import_library(
   deps = [
     {string.Join(",\n    ", e.Core_Deps.ContainsKey("netcoreapp3.1") ? e.Core_Deps["netcoreapp3.1"].Select(Fix) : Array.Empty<string>())}
   ],
+  version = ""{e.PackageIdentity.Version}"",
+)
+filegroup(
+  name = ""files"",
+  srcs = glob([""{e.PackageIdentity.Version}/**""]),
+  visibility = [""//visibility:public""]
 )
 "));
         var prefix = @"
