@@ -21,4 +21,9 @@
     <ProjectReference Include="..\Afas.BazelDotnet.Project\Afas.BazelDotnet.Project.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="assets/bazel_dotnet.BUILD" Link="BUILD" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="assets/bazel_dotnet.WORKSPACE" Link="WORKSPACE" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
