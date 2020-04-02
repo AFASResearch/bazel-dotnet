@@ -25,6 +25,7 @@ namespace Afas.BazelDotnet.Project
         $"{Path.GetFileNameWithoutExtension(_definition.RelativeFilePath)}.dll",
         BuildSrcPatterns().ToArray(),
         GetDependencies().ToArray(),
+        GetAnalyzers().ToArray(),
         GetResources(),
         GetResx(),
         _definition.CopyToOutput
@@ -33,6 +34,21 @@ namespace Afas.BazelDotnet.Project
 
     private IEnumerable<string> GetDependencies() =>
       GetAssemblyDependencies().Concat(BuildExternalDependencies()).Concat(BuildInternalDependencies());
+
+    private IEnumerable<string> GetAnalyzers()
+    {
+      foreach(var reference in _definition.Analyzers)
+      {
+        if(string.IsNullOrEmpty(_nugetWorkspace))
+        {
+          yield return $"@{reference.ToLower()}//:netcoreapp3.1_core";
+        }
+        else
+        {
+          yield return $"@{_nugetWorkspace}//{reference.ToLower()}:netcoreapp3.1_core";
+        }
+      }
+    }
 
     private (IReadOnlyCollection<string>, IReadOnlyCollection<string>)? GetResources()
     {
@@ -47,7 +63,7 @@ namespace Afas.BazelDotnet.Project
       return (includes, excludes);
     }
 
-    private IReadOnlyCollection<string> GetResx() 
+    private IReadOnlyCollection<string> GetResx()
     {
       return _definition.EmbeddedResources.Where(e => e.Type == EmbeddedResourceType.Update && e.Value.EndsWith(".resx")).Select(e => e.GetNormalizedValue()).ToArray();
     }
@@ -78,17 +94,13 @@ namespace Afas.BazelDotnet.Project
     {
       foreach(var reference in _definition.PackageReferences)
       {
-        var name = reference.ToLower();
-        if(!name.Equals("afas.analyzers"))
+        if(string.IsNullOrEmpty(_nugetWorkspace))
         {
-          if(string.IsNullOrEmpty(_nugetWorkspace))
-          {
-            yield return $"@{reference.ToLower()}//:netcoreapp3.1_core";
-          }
-          else
-          {
-            yield return $"@{_nugetWorkspace}//{reference.ToLower()}:netcoreapp3.1_core";
-          }
+          yield return $"@{reference.ToLower()}//:netcoreapp3.1_core";
+        }
+        else
+        {
+          yield return $"@{_nugetWorkspace}//{reference.ToLower()}:netcoreapp3.1_core";
         }
       }
     }

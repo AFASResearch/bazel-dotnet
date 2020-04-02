@@ -47,6 +47,7 @@ namespace Afas.BazelDotnet.Nuget
       var libItemGroups = new List<FrameworkSpecificGroup>();
       var runtimeItemGroups = new List<FrameworkSpecificGroup>();
       var toolItemGroups = new List<FrameworkSpecificGroup>();
+      var analyzerItemGroups = new List<FrameworkSpecificGroup>();
 
       foreach(var target in _targets)
       {
@@ -72,6 +73,18 @@ namespace Afas.BazelDotnet.Nuget
                                ?? bestCompileGroup;
         var bestToolGroup = collection.FindBestItemGroup(criteria, _conventions.Patterns.ToolsAssemblies);
 
+        // The analyzer dll's are published in analyzers/ or analyzers/dotnet/cs/
+        var analyzerAssemblies = new PatternSet(_conventions.Properties, new []
+        {
+          new PatternDefinition("analyzers/dotnet/cs/{assembly?}"),
+          new PatternDefinition("analyzers/{assembly?}")
+        }, new []
+        {
+          new PatternDefinition("analyzers/dotnet/cs/{assembly}"),
+          new PatternDefinition("analyzers/{assembly}")
+        });
+        var bestAnalyzerGroup = collection.FindItemGroups(analyzerAssemblies).SingleOrDefault();
+
         if(bestCompileGroup != null)
         {
           libItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestCompileGroup.Items.Select(i => i.Path)));
@@ -86,9 +99,14 @@ namespace Afas.BazelDotnet.Nuget
         {
           toolItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestToolGroup.Items.Select(i => i.Path)));
         }
+
+        if(bestAnalyzerGroup != null)
+        {
+          analyzerItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestAnalyzerGroup.Items.Select(i => i.Path)));
+        }
       }
 
-      return new LocalPackageWithGroups(localPackageSourceInfo, libItemGroups, runtimeItemGroups, toolItemGroups);
+      return new LocalPackageWithGroups(localPackageSourceInfo, libItemGroups, runtimeItemGroups, toolItemGroups, analyzerItemGroups);
     }
 
     public void WithLocalPackages(IReadOnlyCollection<LocalPackageWithGroups> localPackages)
@@ -114,7 +132,8 @@ namespace Afas.BazelDotnet.Nuget
       IEnumerable<PackageDependency> RemoveEmptyDeps(PackageDependency dependency, NuGetFramework targetFramework)
       {
         if(SdkList.Dlls.Contains(dependency.Id.ToLower()) || !_localPackages.ContainsKey(dependency.Id)
-            || _localPackages[dependency.Id].RuntimeItemGroups.Any(g => g.Items.Any()))
+            || _localPackages[dependency.Id].RuntimeItemGroups.Any(g => g.Items.Any())
+            || _localPackages[dependency.Id].AnalyzerItemGroups.Any(g => g.Items.Any()))
         {
           return new[] { dependency };
         }
@@ -134,7 +153,7 @@ namespace Afas.BazelDotnet.Nuget
       // TODO try fix SHA
       var sha256 = "";
       string source = _packageSourceResolver?.Resolve(localPackageSourceInfo.Package.Id);
-      
+
       // Workaround for ZIP file mode error https://github.com/bazelbuild/bazel/issues/9236
       var version = localPackageSourceInfo.Package.Id.Equals("microsoft.aspnetcore.jsonpatch", StringComparison.OrdinalIgnoreCase) &&
                     localPackageSourceInfo.Package.Version.ToString().Equals("2.0.0", StringComparison.OrdinalIgnoreCase)

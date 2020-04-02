@@ -73,7 +73,9 @@ namespace Afas.BazelDotnet.Nuget
       {
         var id = entryGroup.Key.ToLower();
 
-        var content = string.Join("\n", entryGroup.Where(e => e.CoreLib.ContainsKey("netcoreapp3.1")).Select(e => $@"
+        var content = string.Join("\n", entryGroup
+          .Where(e => e.CoreLib.ContainsKey("netcoreapp3.1"))
+          .Select(e => $@"
 core_import_library(
   name = ""netcoreapp3.1_core"",
   src = ""{e.PackageIdentity.Version}/{e.CoreLib["netcoreapp3.1"]}"",
