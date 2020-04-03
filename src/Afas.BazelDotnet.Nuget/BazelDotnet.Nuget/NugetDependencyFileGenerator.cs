@@ -22,7 +22,7 @@ namespace Afas.BazelDotnet.Nuget
       _packageSourceResolver = packageSourceResolver;
     }
 
-    private async Task<IReadOnlyCollection<WorkspaceEntry>> CreateEntries(string targetFramework, string targetRuntime,
+    private async Task<(WorkspaceEntryBuilder workspaceEntryBuilder, LocalPackageWithGroups[])> ResolveLocalPackages(string targetFramework, string targetRuntime,
       IEnumerable<(string package, string version)> packageReferences)
     {
       ILogger logger = new ConsoleLogger();
@@ -40,21 +40,28 @@ namespace Afas.BazelDotnet.Nuget
         }
 
         var dependencyGraph = await dependencyGraphResolver.ResolveGraph(targetFramework, targetRuntime).ConfigureAwait(false);
-        var localPackages = await dependencyGraphResolver.ResolveLocalPackages(dependencyGraph).ConfigureAwait(false);
+        var localPackages = await dependencyGraphResolver.DownloadPackages(dependencyGraph).ConfigureAwait(false);
 
         var workspaceEntryBuilder = new WorkspaceEntryBuilder(dependencyGraph.Conventions, _packageSourceResolver)
           .WithTarget(new FrameworkRuntimePair(NuGetFramework.Parse(targetFramework), targetRuntime));
 
-        // First resolve al file groups
-        var resolved = localPackages.Select(workspaceEntryBuilder.ResolveGroups).ToArray();
-
-        // Then we use them to validate deps actually contain content
-        workspaceEntryBuilder.WithLocalPackages(resolved);
-
-        return resolved.SelectMany(workspaceEntryBuilder.Build)
-          .Where(entry => !SdkList.Dlls.Contains(entry.PackageIdentity.Id.ToLower()))
-          .ToArray();
+        // TODO split workspace entry builder logic
+        return (workspaceEntryBuilder, localPackages.Select(workspaceEntryBuilder.ResolveGroups).ToArray());
       }
+    }
+
+    private async Task<IReadOnlyCollection<WorkspaceEntry>> CreateEntries(string targetFramework, string targetRuntime,
+      IEnumerable<(string package, string version)> packageReferences)
+    {
+      // First resolve al file groups
+      var (workspaceEntryBuilder, resolved) = await ResolveLocalPackages(targetFramework, targetRuntime, packageReferences).ConfigureAwait(false);
+
+      // Then we use them to validate deps actually contain content
+      workspaceEntryBuilder.WithLocalPackages(resolved);
+
+      return resolved.SelectMany(workspaceEntryBuilder.Build)
+        .Where(entry => !SdkList.Dlls.Contains(entry.PackageIdentity.Id.ToLower()))
+        .ToArray();
     }
 
     public async Task<string> GenerateDeps(string targetFramework, string targetRuntime, IEnumerable<(string package, string version)> packageReferences)
@@ -65,49 +72,65 @@ namespace Afas.BazelDotnet.Nuget
 
     public async Task WriteRepository(string targetFramework, string targetRuntime, IEnumerable<(string package, string version)> packageReferences)
     {
-      var entries = await CreateEntries(targetFramework, targetRuntime, packageReferences).ConfigureAwait(false);
+      var (_, packages) = await ResolveLocalPackages(targetFramework, targetRuntime, packageReferences).ConfigureAwait(false);
 
       var symlinks = new HashSet<(string, string)>();
 
-      foreach(var entryGroup in entries.GroupBy(e => e.Name, StringComparer.OrdinalIgnoreCase))
+      foreach(var entryGroup in packages.GroupBy(e => e.LocalPackageSourceInfo.Package.Id, StringComparer.OrdinalIgnoreCase))
       {
         var id = entryGroup.Key.ToLower();
 
-        var content = string.Join("\n", entryGroup.Where(e => e.CoreLib.ContainsKey("netcoreapp3.1")).Select(e => $@"
-core_import_library(
-  name = ""netcoreapp3.1_core"",
-  src = ""{e.PackageIdentity.Version}/{e.CoreLib["netcoreapp3.1"]}"",
-  deps = [
-    {string.Join(",\n    ", e.Core_Deps.ContainsKey("netcoreapp3.1") ? e.Core_Deps["netcoreapp3.1"].Select(Fix) : Array.Empty<string>())}
-  ],
-  version = ""{e.PackageIdentity.Version}"",
-)
-filegroup(
-  name = ""files"",
-  srcs = glob([""{e.PackageIdentity.Version}/**""]),
-  visibility = [""//visibility:public""]
-)
-"));
-        var prefix = @"
-package(default_visibility = [ ""//visibility:public"" ])
+        var content = $@"package(default_visibility = [""//visibility:public""])
 load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
-";
+
+{string.Join("\n\n", entryGroup.Select(CreateTarget))}";
 
         var filePath = $"{id}/BUILD";
-        (new FileInfo(filePath)).Directory.Create();
-        File.WriteAllText(filePath, prefix + content);
+        new FileInfo(filePath).Directory.Create();
+        File.WriteAllText(filePath, content);
 
         // Possibly link multiple versions
         foreach(var entry in entryGroup)
         {
-          symlinks.Add(($"{id}/{entry.PackageIdentity.Version}", entry.ExpandedPath));
+          symlinks.Add(($"{id}/{entry.LocalPackageSourceInfo.Package.Version}", entry.LocalPackageSourceInfo.Package.ExpandedPath));
         }
       }
 
       File.WriteAllText("link.cmd", string.Join("\n", symlinks.Select(sl => $@"mklink /D ""{sl.Item1}"" ""{sl.Item2}""")));
       Process.Start(new ProcessStartInfo("cmd.exe", "/C link.cmd")).WaitForExit();
+    }
 
-      string Fix(string s) => $@"""{s.Replace("//", "").Replace("@", "@nuget//")}""";
+    private string CreateTarget(LocalPackageWithGroups package)
+    {
+      var identity = package.LocalPackageSourceInfo.Package;
+      var libs = Array(package.RuntimeItemGroups.SingleOrDefault()?.Items.Select(v => $"{identity.Version}/{v}"));
+      var refs = Array(package.RefItemGroups.SingleOrDefault()?.Items.Select(v => $"{identity.Version}/{v}"));
+      var deps = Array(package.DependencyGroups.SingleOrDefault()?.Packages
+        .Where(p => !SdkList.Dlls.Contains(p.Id.ToLower()))
+        .Select(p => $"//{p.Id.ToLower()}:netcoreapp3.1_core"));
+
+      return $@"core_import_library(
+  name = ""netcoreapp3.1_core"",
+  libs = [{libs}],
+  refs = [{refs}],
+  deps = [{deps}],
+  version = ""{identity.Version}"",
+)
+
+filegroup(
+  name = ""files"",
+  srcs = glob([""{identity.Version}/**""]),
+)";
+    }
+
+    private string Array(IEnumerable<string> elems)
+    {
+      if(elems?.Any() != true)
+      {
+        return string.Empty;
+      }
+
+      return $"\n{string.Join(",\n", elems.Select(e => $"    \"{e}\""))}\n  ";
     }
   }
 }

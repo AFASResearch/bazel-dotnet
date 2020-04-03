@@ -43,38 +43,38 @@ namespace Afas.BazelDotnet.Nuget
     {
       var collection = new ContentItemCollection();
       collection.Load(localPackageSourceInfo.Package.Files);
+      var allPackageDependencyGroups = localPackageSourceInfo.Package.Nuspec.GetDependencyGroups().ToArray();
 
-      var libItemGroups = new List<FrameworkSpecificGroup>();
+      var refItemGroups = new List<FrameworkSpecificGroup>();
       var runtimeItemGroups = new List<FrameworkSpecificGroup>();
-      var toolItemGroups = new List<FrameworkSpecificGroup>();
+      var dependencyGroups = new List<PackageDependencyGroup>();
 
       foreach(var target in _targets)
       {
         SelectionCriteria criteria = _conventions.Criteria.ForFrameworkAndRuntime(target.Framework, target.RuntimeIdentifier);
 
-        var bestCompileGroup = collection.FindBestItemGroup(criteria,
-            _conventions.Patterns.CompileRefAssemblies,
-            _conventions.Patterns.CompileLibAssemblies);
-
         // The nunit3testadapter package publishes dll's in build/
-        var buildAssemblies = new PatternSet(_conventions.Properties, new []
+        var buildAssemblies = new PatternSet(_conventions.Properties, new[]
         {
           new PatternDefinition("build/{tfm}/{any?}"),
           new PatternDefinition("build/{assembly?}")
-        }, new []
+        }, new[]
         {
           new PatternDefinition("build/{tfm}/{assembly}"),
           new PatternDefinition("build/{assembly}")
         });
 
-        var bestRuntimeGroup = collection.FindBestItemGroup(criteria, _conventions.Patterns.RuntimeAssemblies, buildAssemblies)
-                               // fallback to best compile group
-                               ?? bestCompileGroup;
-        var bestToolGroup = collection.FindBestItemGroup(criteria, _conventions.Patterns.ToolsAssemblies);
+        var bestRefGroup = collection.FindBestItemGroup(criteria,
+          _conventions.Patterns.CompileRefAssemblies,
+          _conventions.Patterns.CompileLibAssemblies);
 
-        if(bestCompileGroup != null)
+        var bestRuntimeGroup = collection.FindBestItemGroup(criteria,
+          _conventions.Patterns.RuntimeAssemblies,
+          buildAssemblies);
+
+        if(bestRefGroup != null)
         {
-          libItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestCompileGroup.Items.Select(i => i.Path)));
+          refItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestRefGroup.Items.Select(i => i.Path)));
         }
 
         if(bestRuntimeGroup != null)
@@ -82,13 +82,10 @@ namespace Afas.BazelDotnet.Nuget
           runtimeItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestRuntimeGroup.Items.Select(i => i.Path)));
         }
 
-        if(bestToolGroup != null)
-        {
-          toolItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestToolGroup.Items.Select(i => i.Path)));
-        }
+        dependencyGroups.Add(NuGetFrameworkUtility.GetNearest(allPackageDependencyGroups, target.Framework));
       }
 
-      return new LocalPackageWithGroups(localPackageSourceInfo, libItemGroups, runtimeItemGroups, toolItemGroups);
+      return new LocalPackageWithGroups(localPackageSourceInfo, refItemGroups, runtimeItemGroups, dependencyGroups);
     }
 
     public void WithLocalPackages(IReadOnlyCollection<LocalPackageWithGroups> localPackages)
@@ -99,7 +96,7 @@ namespace Afas.BazelDotnet.Nuget
     public IEnumerable<WorkspaceEntry> Build(LocalPackageWithGroups localPackage)
     {
       var localPackageSourceInfo = localPackage.LocalPackageSourceInfo;
-      var depsGroups = localPackageSourceInfo.Package.Nuspec.GetDependencyGroups();
+      var depsGroups = localPackage.DependencyGroups;
 
       // We do not support packages without any files
       if(!localPackage.RuntimeItemGroups.Any(g => g.Items.Any()) && !depsGroups.Any())
@@ -108,40 +105,14 @@ namespace Afas.BazelDotnet.Nuget
       }
 
       // Only use deps that contain content
-      depsGroups = depsGroups.Select(d => new PackageDependencyGroup(d.TargetFramework, d.Packages.SelectMany(p => RemoveEmptyDeps(p, d.TargetFramework))));
-
-      // TODO consider target framework
-      IEnumerable<PackageDependency> RemoveEmptyDeps(PackageDependency dependency, NuGetFramework targetFramework)
-      {
-        if(SdkList.Dlls.Contains(dependency.Id.ToLower()) || !_localPackages.ContainsKey(dependency.Id)
-            || _localPackages[dependency.Id].RuntimeItemGroups.Any(g => g.Items.Any()))
-        {
-          return new[] { dependency };
-        }
-
-        var deps = _localPackages[dependency.Id]
-          .LocalPackageSourceInfo.Package.Nuspec.GetDependencyGroups()
-          .FirstOrDefault(g => g.TargetFramework == targetFramework);
-
-        if(deps == null)
-        {
-          return Array.Empty<PackageDependency>();
-        }
-
-        return deps.Packages.SelectMany(p => RemoveEmptyDeps(p, targetFramework));
-      }
+      depsGroups = depsGroups.Select(d => new PackageDependencyGroup(d.TargetFramework, d.Packages
+        .SelectMany(p => RemoveEmptyDeps(p, d.TargetFramework)))).ToArray();
 
       // TODO try fix SHA
       var sha256 = "";
       string source = _packageSourceResolver?.Resolve(localPackageSourceInfo.Package.Id);
       
-      // Workaround for ZIP file mode error https://github.com/bazelbuild/bazel/issues/9236
-      var version = localPackageSourceInfo.Package.Id.Equals("microsoft.aspnetcore.jsonpatch", StringComparison.OrdinalIgnoreCase) &&
-                    localPackageSourceInfo.Package.Version.ToString().Equals("2.0.0", StringComparison.OrdinalIgnoreCase)
-          ? NuGetVersion.Parse("2.2.0")
-          : localPackageSourceInfo.Package.Version;
-
-      var packageIdentity = new PackageIdentity(localPackageSourceInfo.Package.Id, version);
+      var packageIdentity = new PackageIdentity(localPackageSourceInfo.Package.Id, localPackageSourceInfo.Package.Version);
 
       var dlls = localPackage.RuntimeItemGroups
           .SelectMany(g => g.Items)
@@ -182,7 +153,7 @@ namespace Afas.BazelDotnet.Nuget
         yield return new WorkspaceEntry(packageIdentity, sha256,
             addedDeps,
             FilterSpecificDll(localPackage.RuntimeItemGroups, mainDll),
-            localPackage.ToolItemGroups,
+            Array.Empty<FrameworkSpecificGroup>(),
             Array.Empty<FrameworkSpecificGroup>(), null, null,
             packageSource: source,
             expandedPath: localPackage.LocalPackageSourceInfo.Package.ExpandedPath);
@@ -191,9 +162,30 @@ namespace Afas.BazelDotnet.Nuget
       {
         yield return new WorkspaceEntry(packageIdentity, sha256,
             //  TODO For now we pass runtime as deps. This should be different elements in bazel tasks
-            depsGroups, localPackage.RuntimeItemGroups ?? localPackage.LibItemGroups, localPackage.ToolItemGroups, Array.Empty<FrameworkSpecificGroup>(), null, null,
+            depsGroups, localPackage.RuntimeItemGroups ?? localPackage.RefItemGroups, Array.Empty<FrameworkSpecificGroup>(), Array.Empty<FrameworkSpecificGroup>(), null, null,
             packageSource: source,
             expandedPath: localPackage.LocalPackageSourceInfo.Package.ExpandedPath);
+      }
+
+      // TODO consider target framework
+      IEnumerable<PackageDependency> RemoveEmptyDeps(PackageDependency dependency, NuGetFramework targetFramework)
+      {
+        if(SdkList.Dlls.Contains(dependency.Id.ToLower()) || !_localPackages.ContainsKey(dependency.Id)
+                                                          || _localPackages[dependency.Id].RuntimeItemGroups.Any(g => g.Items.Any()))
+        {
+          return new[] { dependency };
+        }
+
+        var deps = _localPackages[dependency.Id]
+          .LocalPackageSourceInfo.Package.Nuspec.GetDependencyGroups()
+          .FirstOrDefault(g => g.TargetFramework == targetFramework);
+
+        if(deps == null)
+        {
+          return Array.Empty<PackageDependency>();
+        }
+
+        return deps.Packages.SelectMany(p => RemoveEmptyDeps(p, targetFramework));
       }
     }
 

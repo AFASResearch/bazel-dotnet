@@ -7,22 +7,22 @@ namespace Afas.BazelDotnet.Nuget
   internal class LocalPackageWithGroups
   {
     public LocalPackageWithGroups(LocalPackageSourceInfo localPackageSourceInfo,
-      IReadOnlyCollection<FrameworkSpecificGroup> libItemGroups,
+      IReadOnlyCollection<FrameworkSpecificGroup> refItemGroups,
       IReadOnlyCollection<FrameworkSpecificGroup> runtimeItemGroups,
-      IReadOnlyCollection<FrameworkSpecificGroup> toolItemGroups)
+      IReadOnlyCollection<PackageDependencyGroup> dependencyGroups)
     {
       LocalPackageSourceInfo = localPackageSourceInfo;
-      LibItemGroups = libItemGroups;
+      RefItemGroups = refItemGroups;
       RuntimeItemGroups = runtimeItemGroups;
-      ToolItemGroups = toolItemGroups;
+      DependencyGroups = dependencyGroups;
     }
 
     public LocalPackageSourceInfo LocalPackageSourceInfo { get; }
 
-    public IReadOnlyCollection<FrameworkSpecificGroup> LibItemGroups { get; }
+    public IReadOnlyCollection<FrameworkSpecificGroup> RefItemGroups { get; }
 
     public IReadOnlyCollection<FrameworkSpecificGroup> RuntimeItemGroups { get; }
 
-    public IReadOnlyCollection<FrameworkSpecificGroup> ToolItemGroups { get; }
+    public IReadOnlyCollection<PackageDependencyGroup> DependencyGroups { get; }
   }
 }
