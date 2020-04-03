@@ -1,41 +1,37 @@
-using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using NuGet.Client;
 using NuGet.ContentModel;
 using NuGet.Frameworks;
 using NuGet.Packaging;
-using NuGet.Packaging.Core;
 using NuGet.Repositories;
-using NuGet.Versioning;
 
 namespace Afas.BazelDotnet.Nuget
 {
-  internal class WorkspaceEntryBuilder
+  internal class NugetRepositoryEntryBuilder
   {
     private readonly ManagedCodeConventions _conventions;
     private readonly List<FrameworkRuntimePair> _targets;
 
-    public WorkspaceEntryBuilder(ManagedCodeConventions conventions)
+    public NugetRepositoryEntryBuilder(ManagedCodeConventions conventions)
     {
       _conventions = conventions;
       _targets = new List<FrameworkRuntimePair>();
     }
 
-    public WorkspaceEntryBuilder WithTarget(FrameworkRuntimePair target)
+    public NugetRepositoryEntryBuilder WithTarget(FrameworkRuntimePair target)
     {
       _targets.Add(target);
       return this;
     }
 
-    public WorkspaceEntryBuilder WithTarget(NuGetFramework target)
+    public NugetRepositoryEntryBuilder WithTarget(NuGetFramework target)
     {
       _targets.Add(new FrameworkRuntimePair(target, runtimeIdentifier: null));
       return this;
     }
 
-    public LocalPackageWithGroups ResolveGroups(LocalPackageSourceInfo localPackageSourceInfo)
+    public NugetRepositoryEntry ResolveGroups(LocalPackageSourceInfo localPackageSourceInfo)
     {
       var collection = new ContentItemCollection();
       collection.Load(localPackageSourceInfo.Package.Files);
@@ -81,7 +77,7 @@ namespace Afas.BazelDotnet.Nuget
         dependencyGroups.Add(NuGetFrameworkUtility.GetNearest(allPackageDependencyGroups, target.Framework));
       }
 
-      return new LocalPackageWithGroups(localPackageSourceInfo, refItemGroups, runtimeItemGroups, dependencyGroups);
+      return new NugetRepositoryEntry(localPackageSourceInfo, refItemGroups, runtimeItemGroups, dependencyGroups);
     }
   }
 }

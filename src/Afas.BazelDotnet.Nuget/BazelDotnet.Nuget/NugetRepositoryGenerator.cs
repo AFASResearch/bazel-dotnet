@@ -11,16 +11,16 @@ using NuGet.Protocol.Core.Types;
 
 namespace Afas.BazelDotnet.Nuget
 {
-  public class NugetDependencyFileGenerator
+  public class NugetRepositoryGenerator
   {
     private readonly string _nugetConfig;
 
-    public NugetDependencyFileGenerator(string nugetConfig)
+    public NugetRepositoryGenerator(string nugetConfig)
     {
       _nugetConfig = nugetConfig;
     }
 
-    private async Task<LocalPackageWithGroups[]> ResolveLocalPackages(string targetFramework, string targetRuntime,
+    private async Task<NugetRepositoryEntry[]> ResolveLocalPackages(string targetFramework, string targetRuntime,
       IEnumerable<(string package, string version)> packageReferences)
     {
       ILogger logger = new ConsoleLogger();
@@ -40,10 +40,10 @@ namespace Afas.BazelDotnet.Nuget
         var dependencyGraph = await dependencyGraphResolver.ResolveGraph(targetFramework, targetRuntime).ConfigureAwait(false);
         var localPackages = await dependencyGraphResolver.DownloadPackages(dependencyGraph).ConfigureAwait(false);
 
-        var workspaceEntryBuilder = new WorkspaceEntryBuilder(dependencyGraph.Conventions)
+        var entryBuilder = new NugetRepositoryEntryBuilder(dependencyGraph.Conventions)
           .WithTarget(new FrameworkRuntimePair(NuGetFramework.Parse(targetFramework), targetRuntime));
 
-        return localPackages.Select(workspaceEntryBuilder.ResolveGroups).ToArray();
+        return localPackages.Select(entryBuilder.ResolveGroups).ToArray();
       }
     }
 
@@ -77,7 +77,7 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
       Process.Start(new ProcessStartInfo("cmd.exe", "/C link.cmd")).WaitForExit();
     }
 
-    private string CreateTarget(LocalPackageWithGroups package)
+    private string CreateTarget(NugetRepositoryEntry package)
     {
       var identity = package.LocalPackageSourceInfo.Package;
       var libs = Array(package.RuntimeItemGroups.SingleOrDefault()?.Items.Select(v => $"{identity.Version}/{v}"));

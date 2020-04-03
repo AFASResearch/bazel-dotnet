@@ -109,7 +109,7 @@ namespace Afas.BazelDotnet
     {
       (string, string)[] deps = ResolvePackages(packageProps);
 
-      await new NugetDependencyFileGenerator(nugetConfig)
+      await new NugetRepositoryGenerator(nugetConfig)
         .WriteRepository("netcoreapp3.1", "win", deps)
         .ConfigureAwait(false);
     }

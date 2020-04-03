@@ -4,9 +4,9 @@ using NuGet.Repositories;
 
 namespace Afas.BazelDotnet.Nuget
 {
-  internal class LocalPackageWithGroups
+  internal class NugetRepositoryEntry
   {
-    public LocalPackageWithGroups(LocalPackageSourceInfo localPackageSourceInfo,
+    public NugetRepositoryEntry(LocalPackageSourceInfo localPackageSourceInfo,
       IReadOnlyCollection<FrameworkSpecificGroup> refItemGroups,
       IReadOnlyCollection<FrameworkSpecificGroup> runtimeItemGroups,
       IReadOnlyCollection<PackageDependencyGroup> dependencyGroups)
