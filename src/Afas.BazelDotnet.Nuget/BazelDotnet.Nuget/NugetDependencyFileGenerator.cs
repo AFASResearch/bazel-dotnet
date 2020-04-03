@@ -14,15 +14,13 @@ namespace Afas.BazelDotnet.Nuget
   public class NugetDependencyFileGenerator
   {
     private readonly string _nugetConfig;
-    private readonly IPackageSourceResolver _packageSourceResolver;
 
-    public NugetDependencyFileGenerator(string nugetConfig, IPackageSourceResolver packageSourceResolver = null)
+    public NugetDependencyFileGenerator(string nugetConfig)
     {
       _nugetConfig = nugetConfig;
-      _packageSourceResolver = packageSourceResolver;
     }
 
-    private async Task<(WorkspaceEntryBuilder workspaceEntryBuilder, LocalPackageWithGroups[])> ResolveLocalPackages(string targetFramework, string targetRuntime,
+    private async Task<LocalPackageWithGroups[]> ResolveLocalPackages(string targetFramework, string targetRuntime,
       IEnumerable<(string package, string version)> packageReferences)
     {
       ILogger logger = new ConsoleLogger();
@@ -42,37 +40,16 @@ namespace Afas.BazelDotnet.Nuget
         var dependencyGraph = await dependencyGraphResolver.ResolveGraph(targetFramework, targetRuntime).ConfigureAwait(false);
         var localPackages = await dependencyGraphResolver.DownloadPackages(dependencyGraph).ConfigureAwait(false);
 
-        var workspaceEntryBuilder = new WorkspaceEntryBuilder(dependencyGraph.Conventions, _packageSourceResolver)
+        var workspaceEntryBuilder = new WorkspaceEntryBuilder(dependencyGraph.Conventions)
           .WithTarget(new FrameworkRuntimePair(NuGetFramework.Parse(targetFramework), targetRuntime));
 
-        // TODO split workspace entry builder logic
-        return (workspaceEntryBuilder, localPackages.Select(workspaceEntryBuilder.ResolveGroups).ToArray());
+        return localPackages.Select(workspaceEntryBuilder.ResolveGroups).ToArray();
       }
-    }
-
-    private async Task<IReadOnlyCollection<WorkspaceEntry>> CreateEntries(string targetFramework, string targetRuntime,
-      IEnumerable<(string package, string version)> packageReferences)
-    {
-      // First resolve al file groups
-      var (workspaceEntryBuilder, resolved) = await ResolveLocalPackages(targetFramework, targetRuntime, packageReferences).ConfigureAwait(false);
-
-      // Then we use them to validate deps actually contain content
-      workspaceEntryBuilder.WithLocalPackages(resolved);
-
-      return resolved.SelectMany(workspaceEntryBuilder.Build)
-        .Where(entry => !SdkList.Dlls.Contains(entry.PackageIdentity.Id.ToLower()))
-        .ToArray();
-    }
-
-    public async Task<string> GenerateDeps(string targetFramework, string targetRuntime, IEnumerable<(string package, string version)> packageReferences)
-    {
-      var entries = await CreateEntries(targetFramework, targetRuntime, packageReferences).ConfigureAwait(false);
-      return string.Join(string.Empty, entries.Select(entry => entry.Generate(indent: true)));
     }
 
     public async Task WriteRepository(string targetFramework, string targetRuntime, IEnumerable<(string package, string version)> packageReferences)
     {
-      var (_, packages) = await ResolveLocalPackages(targetFramework, targetRuntime, packageReferences).ConfigureAwait(false);
+      var packages = await ResolveLocalPackages(targetFramework, targetRuntime, packageReferences).ConfigureAwait(false);
 
       var symlinks = new HashSet<(string, string)>();
 

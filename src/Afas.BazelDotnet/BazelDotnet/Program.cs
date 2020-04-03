@@ -22,22 +22,6 @@ namespace Afas.BazelDotnet
 
       app.HelpOption("-?|-h|--help");
 
-      app.Command("dependencies", repoCmd =>
-      {
-        var packageProps = repoCmd.Argument("packageProps", "The path to the Packages.Props file");
-        var nugetConfig = repoCmd.Argument("nugetConfig", "The path to the Packages.Props file");
-        var depsBzl = repoCmd.Argument("depsBzl", "The output filename ending in .bzl");
-
-        repoCmd.OnExecute(async () =>
-        {
-          var packagePropsFilePath = Path.Combine(Directory.GetCurrentDirectory(), packageProps.Value);
-          var nugetConfigFilePath = Path.Combine(Directory.GetCurrentDirectory(), nugetConfig.Value);
-
-          await GenerateDependencies(packagePropsFilePath, nugetConfigFilePath, depsBzl.Value).ConfigureAwait(false);
-          return 0;
-        });
-      });
-
       app.Command("repository", repoCmd =>
       {
         var packageProps = repoCmd.Argument("packageProps", "The path to the Packages.Props file");
@@ -125,22 +109,9 @@ namespace Afas.BazelDotnet
     {
       (string, string)[] deps = ResolvePackages(packageProps);
 
-      await new NugetDependencyFileGenerator(nugetConfig, new AfasPackageSourceResolver())
+      await new NugetDependencyFileGenerator(nugetConfig)
         .WriteRepository("netcoreapp3.1", "win", deps)
         .ConfigureAwait(false);
-    }
-
-    private static async Task GenerateDependencies(string packageProps, string nugetConfig, string depsBzl)
-    {
-      (string, string)[] deps = ResolvePackages(packageProps);
-
-      var content = await new NugetDependencyFileGenerator(nugetConfig, new AfasPackageSourceResolver())
-        .GenerateDeps("netcoreapp3.1", "win", deps)
-        .ConfigureAwait(false);
-
-      File.WriteAllText(
-        depsBzl,
-        $"load(\":nuget.bzl\", \"nuget_package\")\r\n\r\ndef deps():\r\n{content}");
     }
 
     private static void GenerateBuildFiles(string workspace, string nugetWorkspace)
