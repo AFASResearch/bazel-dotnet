@@ -1,5 +1,5 @@
 using System;
-using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -41,6 +41,8 @@ namespace Afas.BazelDotnet
       {
         var pathOption = repoCmd.Option("-p|--path", "The path to the workspace root", CommandOptionType.SingleOrNoValue);
         var workspaceOption = repoCmd.Option("-w|--workspace", "The workspace to load nugets from", CommandOptionType.SingleOrNoValue);
+        var exportsOption = repoCmd.Option("-e|--exports", "Exports file with dictionary of provided project labels (PackageName=Label)", CommandOptionType.SingleOrNoValue);
+        var importsOption = repoCmd.Option("-i|--imports", "Import files with dictionary of imported project labels (PackageName=Label)", CommandOptionType.MultipleValue);
         
         repoCmd.HelpOption("-?|-h|--help");
         repoCmd.OnExecute(async () =>
@@ -61,7 +63,7 @@ namespace Afas.BazelDotnet
             }
           }
 
-          GenerateBuildFiles(path, workspaceOption.Value());
+          GenerateBuildFiles(path, workspaceOption.Value(), exportsOption.Value(),  importsOption.Values);
           return 0;
         });
       });
@@ -114,9 +116,27 @@ namespace Afas.BazelDotnet
         .ConfigureAwait(false);
     }
 
-    private static void GenerateBuildFiles(string workspace, string nugetWorkspace)
+    private static void GenerateBuildFiles(string workspace, string nugetWorkspace, string exportsFileName = null, IReadOnlyCollection<string> importMappings = null)
     {
-      new CsProjBuildFileGenerator(workspace, nugetWorkspace).GlobAllProjects();
+      importMappings ??= Array.Empty<string>();
+
+      IEnumerable<(string, string)> ReadLines(string repoName, string fileName) =>
+        File.ReadAllLines(fileName)
+          .Select(l => l.Trim())
+          .Where(l => !string.IsNullOrEmpty(l))
+          // Project=//src/Project:Project
+          .Select(l => l.Split("="))
+          // (Project, @projects//src/Project:Project)
+          .Select(l => (l[0], $"{repoName}{l[1]}"));
+
+      // Mappings of import files
+      var imports = importMappings
+        // @projects=C:/bazel/external/projects/projects
+        .Select(m => m.Split("="))
+        .SelectMany(s => ReadLines(s[0], s[1]))
+        .ToDictionary(t => t.Item1, t => t.Item2);
+
+      new CsProjBuildFileGenerator(workspace, nugetWorkspace, imports).GlobAllProjects(exportsFileName: exportsFileName);
     }
   }
 }
