@@ -24,15 +24,15 @@ namespace Afas.BazelDotnet
 
       app.Command("repository", repoCmd =>
       {
-        var packageProps = repoCmd.Argument("packageProps", "The path to the Packages.Props file");
         var nugetConfig = repoCmd.Argument("nugetConfig", "The path to the Packages.Props file");
+        var packageProps = repoCmd.Option("-p|--package", "Packages.Props files", CommandOptionType.MultipleValue);
 
         repoCmd.OnExecute(async () =>
         {
-          var packagePropsFilePath = Path.Combine(Directory.GetCurrentDirectory(), packageProps.Value);
+          var packagePropsFilePaths = packageProps.Values.Select(v => Path.Combine(Directory.GetCurrentDirectory(), v)).ToArray();
           var nugetConfigFilePath = Path.Combine(Directory.GetCurrentDirectory(), nugetConfig.Value);
 
-          await WriteRepository(packagePropsFilePath, nugetConfigFilePath).ConfigureAwait(false);
+          await WriteRepository(packagePropsFilePaths, nugetConfigFilePath).ConfigureAwait(false);
           return 0;
         });
       });
@@ -107,9 +107,13 @@ namespace Afas.BazelDotnet
         !arg.version.EndsWith("-local-dev", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static async Task WriteRepository(string packageProps, string nugetConfig)
+    private static async Task WriteRepository(IEnumerable<string> packagePropsFiles, string nugetConfig)
     {
-      (string, string)[] deps = ResolvePackages(packageProps);
+      // TODO conlict resolution. Maybe we can add them in the dep graph
+      (string, string)[] deps = packagePropsFiles
+        .SelectMany(ResolvePackages)
+        .Distinct()
+        .ToArray();
 
       await new NugetRepositoryGenerator(nugetConfig)
         .WriteRepository("netcoreapp3.1", "win", deps)

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using NuGet.Client;
@@ -78,6 +79,18 @@ namespace Afas.BazelDotnet.Nuget
       }
 
       return new NugetRepositoryEntry(localPackageSourceInfo, refItemGroups, runtimeItemGroups, dependencyGroups);
+    }
+
+    public NugetRepositoryEntry BuildFrameworkOverride(NugetRepositoryEntry entry, string frameworkOverride)
+    {
+      Console.WriteLine($"Overwriting {entry.LocalPackageSourceInfo.Package.Id}");
+      return new NugetRepositoryEntry(entry.LocalPackageSourceInfo, new[]
+      {
+        new FrameworkSpecificGroup(_targets.Single().Framework, new []
+        {
+          frameworkOverride,
+        }),
+      }, Array.Empty<FrameworkSpecificGroup>(), entry.DependencyGroups);
     }
   }
 }

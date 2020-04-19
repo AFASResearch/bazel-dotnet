@@ -40,6 +40,12 @@ namespace Afas.BazelDotnet.Nuget
       return this;
     }
 
+    public async Task<RestoreTargetGraph> ResolveFrameworkReference(string id, string version, string targetFramework)
+    {
+      var nugetTargetFramework = NuGetFramework.Parse(targetFramework);
+      return await GetIndependentGraph(id, version, nugetTargetFramework, _context).ConfigureAwait(false);
+    }
+
     public async Task<RestoreTargetGraph> ResolveGraph(string targetFramework, string targetRuntime = null)
     {
       var nugetTargetFramework = NuGetFramework.Parse(targetFramework);
@@ -64,8 +70,11 @@ namespace Afas.BazelDotnet.Nuget
     {
       return await Task.WhenAll(dependencyGraph.Flattened
         .Where(i => !string.Equals(i.Key.Name, _rootProjectName, StringComparison.OrdinalIgnoreCase))
-        .Select(i => _localPackageExtractor.EnsureLocalPackage(i.Data.Match.Provider, ToPackageIdentity(i.Data.Match))));
+        .Select(DownloadPackage));
     }
+
+    public Task<LocalPackageSourceInfo> DownloadPackage(GraphItem<RemoteResolveResult> item) =>
+      _localPackageExtractor.EnsureLocalPackage(item.Data.Match.Provider, ToPackageIdentity(item.Data.Match));
 
     private void PrepareRootProject(NuGetFramework targetFramework)
     {

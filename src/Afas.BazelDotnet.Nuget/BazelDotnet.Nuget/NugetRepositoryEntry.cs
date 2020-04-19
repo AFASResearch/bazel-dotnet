@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using NuGet.Packaging;
 using NuGet.Repositories;
+using NuGet.Versioning;
 
 namespace Afas.BazelDotnet.Nuget
 {
@@ -18,6 +19,10 @@ namespace Afas.BazelDotnet.Nuget
     }
 
     public LocalPackageSourceInfo LocalPackageSourceInfo { get; }
+
+    public NuGetVersion Version => LocalPackageSourceInfo.Package.Version;
+
+    public string Id => LocalPackageSourceInfo.Package.Id;
 
     public IReadOnlyCollection<FrameworkSpecificGroup> RefItemGroups { get; }
 

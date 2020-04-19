@@ -8,15 +8,13 @@ namespace Afas.BazelDotnet.Project
 {
   internal class CsProjectFileDefinition
   {
-    private string _slnBasePath;
-    private string _projectFilePath;
-
     public CsProjectFileDefinition(string projectFilePath, string slnBasePath)
     {
-      _slnBasePath = slnBasePath;
-      _projectFilePath = projectFilePath;
       RelativeFilePath = Path.GetRelativePath(slnBasePath, projectFilePath);
-      PackageReferences = new List<string>();
+      PackageReferences = new List<string>
+      {
+        "Microsoft.NETCore.App.Ref",
+      };
       ProjectReference = new List<string>();
       EmbeddedResources = new List<EmbeddedResourceDefinition>();
       CopyToOutput = new List<string>();
@@ -62,6 +60,13 @@ namespace Afas.BazelDotnet.Project
             PackageReferences.Add(name);
           }
         }
+      }
+
+      foreach(var frameworkReference in document.Descendants("FrameworkReference"))
+      {
+        // TODO naming .Ref?
+        var name = frameworkReference.Attribute("Include").Value;
+        PackageReferences.Add($"{name}.Ref");
       }
 
       foreach(var descendant in document.Descendants("ProjectReference"))

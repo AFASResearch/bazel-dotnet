@@ -147,7 +147,6 @@ resources.append(""{name}"")";
   srcs = {string.Join(",\n", SrcPatterns)},
   resources = resources,{RenderData()}
   deps = [
-    #Adding built-in .Net libs
     {string.Join(",\n    ", Deps.Select(Quote))}
   ],
   dotnet_context_data = ""//:afas_context_data"",

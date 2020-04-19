@@ -43,7 +43,18 @@ namespace Afas.BazelDotnet.Nuget
         var entryBuilder = new NugetRepositoryEntryBuilder(dependencyGraph.Conventions)
           .WithTarget(new FrameworkRuntimePair(NuGetFramework.Parse(targetFramework), targetRuntime));
 
-        return localPackages.Select(entryBuilder.ResolveGroups).ToArray();
+        var entries = localPackages.Select(entryBuilder.ResolveGroups).ToArray();
+
+        var (frameworkEntries, frameworkOverrides) = await new FrameworkDependencyResolver(dependencyGraphResolver)
+          .ResolveFrameworkPackages(entries, targetFramework)
+          .ConfigureAwait(false);
+
+        var overridenEntries = entries.Select(p =>
+          frameworkOverrides.TryGetValue(p.LocalPackageSourceInfo.Package.Id, out var frameworkOverride)
+            ? entryBuilder.BuildFrameworkOverride(p, frameworkOverride)
+            : p);
+
+        return frameworkEntries.Concat(overridenEntries).ToArray();
       }
     }
 
@@ -81,22 +92,19 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
     {
       var identity = package.LocalPackageSourceInfo.Package;
       var libs = Array(package.RuntimeItemGroups.SingleOrDefault()?.Items.Select(v => $"{identity.Version}/{v}"));
-      var refs = Array(package.RefItemGroups.SingleOrDefault()?.Items.Select(v => $"{identity.Version}/{v}"));
+      var refs = Array(package.RefItemGroups.SingleOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{identity.Version}/{v}"));
       var deps = Array(package.DependencyGroups.SingleOrDefault()?.Packages
-        .Where(p => !SdkList.Dlls.Contains(p.Id.ToLower()))
+        //.Where(p => !SdkList.Dlls.Contains(p.Id.ToLower()))
         .Select(p => $"//{p.Id.ToLower()}:netcoreapp3.1_core"));
 
-      return $@"core_import_library(
+      return $@"exports_files(glob([""{identity.Version}/**""]))
+
+core_import_library(
   name = ""netcoreapp3.1_core"",
   libs = [{libs}],
   refs = [{refs}],
   deps = [{deps}],
   version = ""{identity.Version}"",
-)
-
-filegroup(
-  name = ""files"",
-  srcs = glob([""{identity.Version}/**""]),
 )";
     }
 
