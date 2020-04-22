@@ -43,6 +43,7 @@ namespace Afas.BazelDotnet
         var workspaceOption = repoCmd.Option("-w|--workspace", "The workspace to load nugets from", CommandOptionType.SingleOrNoValue);
         var exportsOption = repoCmd.Option("-e|--exports", "Exports file with dictionary of provided project labels (PackageName=Label)", CommandOptionType.SingleOrNoValue);
         var importsOption = repoCmd.Option("-i|--imports", "Import files with dictionary of imported project labels (PackageName=Label)", CommandOptionType.MultipleValue);
+        var searchOption = repoCmd.Option("--search", "Specify folders to search", CommandOptionType.MultipleValue);
         
         repoCmd.HelpOption("-?|-h|--help");
         repoCmd.OnExecute(async () =>
@@ -63,7 +64,7 @@ namespace Afas.BazelDotnet
             }
           }
 
-          GenerateBuildFiles(path, workspaceOption.Value(), exportsOption.Value(),  importsOption.Values);
+          GenerateBuildFiles(path, workspaceOption.Value(), exportsOption.Value(),  importsOption.Values, searchOption.Values);
           return 0;
         });
       });
@@ -120,7 +121,8 @@ namespace Afas.BazelDotnet
         .ConfigureAwait(false);
     }
 
-    private static void GenerateBuildFiles(string workspace, string nugetWorkspace, string exportsFileName = null, IReadOnlyCollection<string> importMappings = null)
+    private static void GenerateBuildFiles(string workspace, string nugetWorkspace, string exportsFileName = null,
+      IReadOnlyCollection<string> importMappings = null, IReadOnlyCollection<string> searchFolders = null)
     {
       importMappings ??= Array.Empty<string>();
 
@@ -140,7 +142,7 @@ namespace Afas.BazelDotnet
         .SelectMany(s => ReadLines(s[0], s[1]))
         .ToDictionary(t => t.Item1, t => t.Item2);
 
-      new CsProjBuildFileGenerator(workspace, nugetWorkspace, imports).GlobAllProjects(exportsFileName: exportsFileName);
+      new CsProjBuildFileGenerator(workspace, nugetWorkspace, imports).GlobAllProjects(searchFolders, exportsFileName: exportsFileName);
     }
   }
 }

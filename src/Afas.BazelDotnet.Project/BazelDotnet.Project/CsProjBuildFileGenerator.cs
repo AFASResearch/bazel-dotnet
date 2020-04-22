@@ -20,9 +20,13 @@ namespace Afas.BazelDotnet.Project
       _importLabels = imports;
     }
 
-    public void GlobAllProjects(string extension = "csproj", string exportsFileName = null)
+    public void GlobAllProjects(IReadOnlyCollection<string> searchFolders = null, string extension = "csproj", string exportsFileName = null)
     {
-      var files = Directory.EnumerateFiles(_workspace, $"*.{extension}", SearchOption.AllDirectories)
+      var filesEnum = searchFolders?.Any() == true ? searchFolders.SelectMany(f =>
+          Directory.EnumerateFiles(Path.Combine(_workspace, f), $"*.{extension}", SearchOption.AllDirectories))
+        : Directory.EnumerateFiles(_workspace, $"*.{extension}", SearchOption.AllDirectories);
+
+      var files = filesEnum
         // exclude bazel (tmp) folders
         .Where(p => !p.Contains("bazel-"))
         .ToArray();
