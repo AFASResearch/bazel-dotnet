@@ -32,7 +32,7 @@ namespace Afas.BazelDotnet.Project
     }
 
     private IEnumerable<string> GetDependencies() =>
-      GetAssemblyDependencies().Concat(BuildExternalDependencies()).Concat(BuildInternalDependencies());
+      BuildExternalDependencies().Concat(BuildInternalDependencies());
 
     private (IReadOnlyCollection<string>, IReadOnlyCollection<string>)? GetResources()
     {
@@ -58,14 +58,6 @@ namespace Afas.BazelDotnet.Project
       {
         yield return $"{projectReference}";
       }
-    }
-
-    private IEnumerable<string> GetAssemblyDependencies()
-    {
-      yield return "@io_bazel_rules_dotnet//dotnet/stdlib.core:netstandard.dll";
-      yield return "@io_bazel_rules_dotnet//dotnet/stdlib.core:microsoft.csharp.dll";
-      // shouldnt this be part of netstandard?
-      yield return "@io_bazel_rules_dotnet//dotnet/stdlib.core:system.reflection.dll";
     }
 
     private IEnumerable<string> BuildSrcPatterns()

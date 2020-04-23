@@ -8,15 +8,13 @@ namespace Afas.BazelDotnet.Project
 {
   internal class CsProjectFileDefinition
   {
-    private string _slnBasePath;
-    private string _projectFilePath;
-
     public CsProjectFileDefinition(string projectFilePath, string slnBasePath)
     {
-      _slnBasePath = slnBasePath;
-      _projectFilePath = projectFilePath;
       RelativeFilePath = Path.GetRelativePath(slnBasePath, projectFilePath);
-      PackageReferences = new List<string>();
+      PackageReferences = new List<string>
+      {
+        "Microsoft.NETCore.App.Ref",
+      };
       ProjectReference = new List<string>();
       EmbeddedResources = new List<EmbeddedResourceDefinition>();
       CopyToOutput = new List<string>();
@@ -34,7 +32,7 @@ namespace Afas.BazelDotnet.Project
 
     public List<string> CopyToOutput { get; }
 
-    public CsProjectFileDefinition Deserialize(Dictionary<string, string> projectFiles, XDocument document)
+    public CsProjectFileDefinition Deserialize(IReadOnlyDictionary<string, string> projectLabels, IReadOnlyDictionary<string, string> importLabels, XDocument document)
     {
       Type = GetProjectType(document);
 
@@ -42,9 +40,13 @@ namespace Afas.BazelDotnet.Project
       {
         var name = reference.Attribute("Include").Value;
 
-        if(name.StartsWith("Afas.Generator", StringComparison.OrdinalIgnoreCase) || projectFiles.ContainsKey(name))
+        if(importLabels.ContainsKey(name))
         {
-          AddProjectReference(projectFiles[name]);
+          ProjectReference.Add(importLabels[name]);
+        }
+        else if(name.StartsWith("Afas.Generator", StringComparison.OrdinalIgnoreCase) || projectLabels.ContainsKey(name))
+        {
+          ProjectReference.Add(projectLabels[name]);
         }
         else
         {
@@ -60,12 +62,19 @@ namespace Afas.BazelDotnet.Project
         }
       }
 
+      foreach(var frameworkReference in document.Descendants("FrameworkReference"))
+      {
+        // TODO naming .Ref?
+        var name = frameworkReference.Attribute("Include").Value;
+        PackageReferences.Add($"{name}.Ref");
+      }
+
       foreach(var descendant in document.Descendants("ProjectReference"))
       {
         var include = descendant.Attribute("Include").Value;
+        var name = Path.GetFileNameWithoutExtension(include);
 
-        AddProjectReference(
-          Path.GetFullPath(Path.Combine(Path.GetDirectoryName(_projectFilePath), include)));
+        ProjectReference.Add(projectLabels[name]);
       }
 
       foreach(var resource in document.Descendants("EmbeddedResource"))
@@ -101,15 +110,6 @@ namespace Afas.BazelDotnet.Project
       }
 
       return this;
-    }
-
-    private void AddProjectReference(string csprojFilePath)
-    {
-      var name = Path.GetDirectoryName(
-          Path.GetRelativePath(_slnBasePath, csprojFilePath))
-        .Replace('\\', '/');
-
-      ProjectReference.Add($"//{name}:{Path.GetFileNameWithoutExtension(csprojFilePath)}");
     }
 
     private ProjectType GetProjectType(XDocument document)
