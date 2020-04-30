@@ -7,14 +7,17 @@ namespace Afas.BazelDotnet.Nuget
 {
   internal class NugetRepositoryEntry
   {
-    public NugetRepositoryEntry(LocalPackageSourceInfo localPackageSourceInfo,
+    public NugetRepositoryEntry(
+      LocalPackageSourceInfo localPackageSourceInfo,
       IReadOnlyCollection<FrameworkSpecificGroup> refItemGroups,
       IReadOnlyCollection<FrameworkSpecificGroup> runtimeItemGroups,
+      IReadOnlyCollection<FrameworkSpecificGroup> analyzerItemGroups,
       IReadOnlyCollection<PackageDependencyGroup> dependencyGroups)
     {
       LocalPackageSourceInfo = localPackageSourceInfo;
       RefItemGroups = refItemGroups;
       RuntimeItemGroups = runtimeItemGroups;
+      AnalyzerItemGroups = analyzerItemGroups;
       DependencyGroups = dependencyGroups;
     }
 
@@ -27,6 +30,8 @@ namespace Afas.BazelDotnet.Nuget
     public IReadOnlyCollection<FrameworkSpecificGroup> RefItemGroups { get; }
 
     public IReadOnlyCollection<FrameworkSpecificGroup> RuntimeItemGroups { get; }
+
+    public IReadOnlyCollection<FrameworkSpecificGroup> AnalyzerItemGroups { get; }
 
     public IReadOnlyCollection<PackageDependencyGroup> DependencyGroups { get; }
   }

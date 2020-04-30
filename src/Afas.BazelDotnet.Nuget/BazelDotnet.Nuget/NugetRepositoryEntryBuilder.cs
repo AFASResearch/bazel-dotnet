@@ -40,6 +40,7 @@ namespace Afas.BazelDotnet.Nuget
 
       var refItemGroups = new List<FrameworkSpecificGroup>();
       var runtimeItemGroups = new List<FrameworkSpecificGroup>();
+      var analyzerItemGroups = new List<FrameworkSpecificGroup>();
       var dependencyGroups = new List<PackageDependencyGroup>();
 
       foreach(var target in _targets)
@@ -65,6 +66,18 @@ namespace Afas.BazelDotnet.Nuget
           _conventions.Patterns.RuntimeAssemblies,
           buildAssemblies);
 
+        // The analyzer dll's are published in analyzers/ or analyzers/dotnet/cs/
+        var analyzerAssemblies = new PatternSet(_conventions.Properties, new []
+        {
+          new PatternDefinition("analyzers/dotnet/cs/{assembly?}"),
+          new PatternDefinition("analyzers/{assembly?}")
+        }, new []
+        {
+          new PatternDefinition("analyzers/dotnet/cs/{assembly}"),
+          new PatternDefinition("analyzers/{assembly}")
+        });
+        var bestAnalyzerGroup = collection.FindItemGroups(analyzerAssemblies).SingleOrDefault();
+
         if(bestRefGroup != null)
         {
           refItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestRefGroup.Items.Select(i => i.Path)));
@@ -75,10 +88,15 @@ namespace Afas.BazelDotnet.Nuget
           runtimeItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestRuntimeGroup.Items.Select(i => i.Path)));
         }
 
+        if(bestAnalyzerGroup != null)
+        {
+          analyzerItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestAnalyzerGroup.Items.Select(i => i.Path)));
+        }
+
         dependencyGroups.Add(NuGetFrameworkUtility.GetNearest(allPackageDependencyGroups, target.Framework));
       }
 
-      return new NugetRepositoryEntry(localPackageSourceInfo, refItemGroups, runtimeItemGroups, dependencyGroups);
+      return new NugetRepositoryEntry(localPackageSourceInfo, refItemGroups, runtimeItemGroups, analyzerItemGroups, dependencyGroups);
     }
 
     public NugetRepositoryEntry BuildFrameworkOverride(NugetRepositoryEntry entry, string frameworkOverride)
@@ -90,7 +108,7 @@ namespace Afas.BazelDotnet.Nuget
         {
           frameworkOverride,
         }),
-      }, Array.Empty<FrameworkSpecificGroup>(), entry.DependencyGroups);
+      }, Array.Empty<FrameworkSpecificGroup>(), Array.Empty<FrameworkSpecificGroup>(), entry.DependencyGroups);
     }
   }
 }
