@@ -96,10 +96,15 @@ namespace Afas.BazelDotnet.Project
       string RenderResx(string resx)
       {
         var name = resx.Replace("/", ".");
+        var output = $"Afas.{Path.GetFileNameWithoutExtension(name)}.resources";
+        if(name.Equals(resx, StringComparison.OrdinalIgnoreCase))
+        {
+          name = $"_{name}";
+        }
         return $@"core_resx(
     name = ""{name}"",
     src = ""{resx}"",
-    out = ""Afas.{Path.GetFileNameWithoutExtension(name)}.resources"",
+    out = ""{output}"",
 )
 resources.append(""{name}"")";
       }
