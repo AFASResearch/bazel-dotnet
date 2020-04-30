@@ -16,7 +16,6 @@ namespace Afas.BazelDotnet.Project
         "Microsoft.NETCore.App.Ref",
       };
       ProjectReference = new List<string>();
-      Analyzers = new List<string>();
       EmbeddedResources = new List<EmbeddedResourceDefinition>();
       CopyToOutput = new List<string>();
     }
@@ -26,8 +25,6 @@ namespace Afas.BazelDotnet.Project
     public ProjectType Type { get; private set; }
 
     public List<string> PackageReferences { get; }
-
-    public List<string> Analyzers { get; }
 
     public List<string> ProjectReference { get; }
 
@@ -50,11 +47,6 @@ namespace Afas.BazelDotnet.Project
         else if(name.StartsWith("Afas.Generator", StringComparison.OrdinalIgnoreCase) || projectLabels.ContainsKey(name))
         {
           ProjectReference.Add(projectLabels[name]);
-        }
-        // Custom pick up the Afas.Analyzer as an analyzer dependency
-        else if(name.Equals("Afas.Analyzers", StringComparison.OrdinalIgnoreCase))
-        {
-          Analyzers.Add(name);
         }
         else
         {

@@ -93,6 +93,8 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
       var identity = package.LocalPackageSourceInfo.Package;
       var libs = Array(package.RuntimeItemGroups.SingleOrDefault()?.Items.Select(v => $"{identity.Version}/{v}"));
       var refs = Array(package.RefItemGroups.SingleOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{identity.Version}/{v}"));
+      var analyzers = Array(package.AnalyzerItemGroups.SingleOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{identity.Version}/{v}"));
+
       var deps = Array(package.DependencyGroups.SingleOrDefault()?.Packages
         //.Where(p => !SdkList.Dlls.Contains(p.Id.ToLower()))
         .Select(p => $"//{p.Id.ToLower()}:netcoreapp3.1_core"));
@@ -103,6 +105,7 @@ core_import_library(
   name = ""netcoreapp3.1_core"",
   libs = [{libs}],
   refs = [{refs}],
+  analyzers = [{analyzers}],
   deps = [{deps}],
   version = ""{identity.Version}"",
 )";

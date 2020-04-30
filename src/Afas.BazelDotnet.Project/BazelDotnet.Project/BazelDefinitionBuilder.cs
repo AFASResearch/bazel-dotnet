@@ -25,7 +25,6 @@ namespace Afas.BazelDotnet.Project
         $"{Path.GetFileNameWithoutExtension(_definition.RelativeFilePath)}.dll",
         BuildSrcPatterns().ToArray(),
         GetDependencies().ToArray(),
-        GetAnalyzers().ToArray(),
         GetResources(),
         GetResx(),
         _definition.CopyToOutput
@@ -34,21 +33,6 @@ namespace Afas.BazelDotnet.Project
 
     private IEnumerable<string> GetDependencies() =>
       BuildExternalDependencies().Concat(BuildInternalDependencies());
-
-    private IEnumerable<string> GetAnalyzers()
-    {
-      foreach(var reference in _definition.Analyzers)
-      {
-        if(string.IsNullOrEmpty(_nugetWorkspace))
-        {
-          yield return $"@{reference.ToLower()}//:netcoreapp3.1_core";
-        }
-        else
-        {
-          yield return $"@{_nugetWorkspace}//{reference.ToLower()}:netcoreapp3.1_core";
-        }
-      }
-    }
 
     private (IReadOnlyCollection<string>, IReadOnlyCollection<string>)? GetResources()
     {

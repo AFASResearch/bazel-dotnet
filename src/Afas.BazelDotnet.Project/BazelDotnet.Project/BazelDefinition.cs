@@ -10,7 +10,6 @@ namespace Afas.BazelDotnet.Project
   {
     public BazelDefinition(string label, string type, string outputAssembly,
       IReadOnlyCollection<string> srcPatterns, IReadOnlyCollection<string> deps,
-      IReadOnlyCollection<string> analyzers,
       (IReadOnlyCollection<string>, IReadOnlyCollection<string>)? resources,
       IReadOnlyCollection<string> resx,
       List<string> data)
@@ -20,7 +19,6 @@ namespace Afas.BazelDotnet.Project
       OutputAssembly = outputAssembly;
       SrcPatterns = srcPatterns;
       Deps = deps;
-      Analyzers = analyzers;
       Resources = resources;
       Resx = resx;
       Data = data;
@@ -35,8 +33,6 @@ namespace Afas.BazelDotnet.Project
     public IReadOnlyCollection<string> SrcPatterns { get; }
 
     public IReadOnlyCollection<string> Deps { get; }
-
-    public IReadOnlyCollection<string> Analyzers { get; }
 
     public (IReadOnlyCollection<string> includes, IReadOnlyCollection<string> excludes)? Resources { get; }
 
@@ -152,9 +148,6 @@ resources.append(""{name}"")";
   resources = resources,{RenderData()}
   deps = [
     {string.Join(",\n    ", Deps.Select(Quote))}
-  ],
-  analyzers = [
-    {string.Join(",\n    ", Analyzers.Select(Quote))}
   ],
   dotnet_context_data = ""//:afas_context_data"",
   visibility = [""//visibility:public""]
