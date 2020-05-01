@@ -147,11 +147,12 @@ namespace Afas.BazelDotnet.Nuget
             frameworkList.Where(pair => !winningPackages.ContainsKey(pair.Key)).Select(pair => pair.Value.file).ToArray())
         },
         runtimeItemGroups: Array.Empty<FrameworkSpecificGroup>(),
+        analyzerItemGroups: Array.Empty<FrameworkSpecificGroup>(),
         dependencyGroups: new []
         {
           new PackageDependencyGroup(
             nuGetFramework,
-            winningPackages.Select(pair => new PackageDependency(pair.Key)).ToArray()), 
+            winningPackages.Select(pair => new PackageDependency(pair.Key)).ToArray()),
         });
     }
 

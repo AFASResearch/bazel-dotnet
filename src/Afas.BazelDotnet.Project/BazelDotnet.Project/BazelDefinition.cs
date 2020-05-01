@@ -88,7 +88,7 @@ namespace Afas.BazelDotnet.Project
       }
 
       return result;
-      
+
       string RenderResx(string resx)
       {
         var name = resx.Replace("/", ".");
