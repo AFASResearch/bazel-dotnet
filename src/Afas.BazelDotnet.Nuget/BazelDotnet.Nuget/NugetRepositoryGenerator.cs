@@ -84,8 +84,16 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
         }
       }
 
-      File.WriteAllText("link.cmd", string.Join("\n", symlinks.Select(sl => $@"mklink /D ""{sl.Item1}"" ""{sl.Item2}""")));
-      Process.Start(new ProcessStartInfo("cmd.exe", "/C link.cmd")).WaitForExit();
+      File.WriteAllText("link.cmd", string.Join("\n", symlinks
+        .Select(sl => $@"mklink /D ""{sl.Item1}"" ""{sl.Item2}""")
+        .Append("exit /b %errorlevel%")));
+      var proc = Process.Start(new ProcessStartInfo("cmd.exe", "/C link.cmd"));
+      proc.WaitForExit();
+
+      if(proc.ExitCode != 0)
+      {
+        throw new Exception("Creating symlinks exited non 0");
+      }
     }
 
     private string CreateTarget(NugetRepositoryEntry package)
