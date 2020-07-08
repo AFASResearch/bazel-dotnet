@@ -102,7 +102,7 @@ namespace Afas.BazelDotnet.Nuget
     public NugetRepositoryEntry BuildFrameworkOverride(NugetRepositoryEntry entry, string frameworkOverride)
     {
       Console.WriteLine($"Overwriting {entry.LocalPackageSourceInfo.Package.Id}");
-      return new NugetRepositoryEntry(entry.LocalPackageSourceInfo, new[]
+      return new NugetRepositoryEntry(entry.LocalPackageSourceInfo, frameworkOverride == null ? Array.Empty<FrameworkSpecificGroup>() : new[]
       {
         new FrameworkSpecificGroup(_targets.Single().Framework, new []
         {

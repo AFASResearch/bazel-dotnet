@@ -62,17 +62,14 @@ namespace Afas.BazelDotnet.Nuget
 
         foreach(var o in potentialOverrides)
         {
-          if(!frameworkList.ContainsKey(o))
-          {
-            continue;
-          }
-
           var targetIsEmpty = packagesLookup[o].RefItemGroups.SingleOrDefault()?.Items.Any() != true;
           if(targetIsEmpty || packageOverrides[o] >= packagesLookup[o].Version)
           {
-            overrides.Add(o, $"//{targetPackage.Package.Id.ToLower()}:{targetPackage.Package.Version}/{frameworkList[o].file}");
+            overrides.Add(o, frameworkList.TryGetValue(o, out var frameworkItem)
+                ? $"//{targetPackage.Package.Id.ToLower()}:{targetPackage.Package.Version}/{frameworkItem.file}"
+                : null);
           }
-          else
+          else if(frameworkList.ContainsKey(o))
           {
             considerAssemblyVersions.Add(o);
           }
