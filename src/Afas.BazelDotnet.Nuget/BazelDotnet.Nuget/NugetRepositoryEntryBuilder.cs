@@ -64,6 +64,7 @@ namespace Afas.BazelDotnet.Nuget
 
         var bestRuntimeGroup = collection.FindBestItemGroup(criteria,
           _conventions.Patterns.RuntimeAssemblies,
+          _conventions.Patterns.NativeLibraries,
           buildAssemblies);
 
         // The analyzer dll's are published in analyzers/ or analyzers/dotnet/cs/
@@ -85,7 +86,11 @@ namespace Afas.BazelDotnet.Nuget
 
         if(bestRuntimeGroup != null)
         {
-          runtimeItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestRuntimeGroup.Items.Select(i => i.Path)));
+          runtimeItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestRuntimeGroup.Items.Where(IsDll).Select(i => i.Path)));
+
+          // Because Patterns.NativeLibraries matches any we sometimes contain pdb's
+          // Constructing NativeLibraries ourselves is not possible due to some internal ManagedCodeConventions
+          static bool IsDll(ContentItem item) => item.Path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
         }
 
         if(bestAnalyzerGroup != null)

@@ -117,7 +117,7 @@ namespace Afas.BazelDotnet
         .ToArray();
 
       await new NugetRepositoryGenerator(nugetConfig)
-        .WriteRepository("netcoreapp3.1", "win", deps)
+        .WriteRepository("netcoreapp3.1", "win-x64", deps)
         .ConfigureAwait(false);
     }
 
