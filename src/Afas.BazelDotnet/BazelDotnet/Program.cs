@@ -27,7 +27,7 @@ namespace Afas.BazelDotnet
         var nugetConfig = repoCmd.Argument("nugetConfig", "The path to the Packages.Props file");
         var packageProps = repoCmd.Option("-p|--package", "Packages.Props files", CommandOptionType.MultipleValue);
 
-        repoCmd.OnExecute(async () =>
+        repoCmd.OnExecuteAsync(async _ =>
         {
           var packagePropsFilePaths = packageProps.Values.Select(v => Path.Combine(Directory.GetCurrentDirectory(), v)).ToArray();
           var nugetConfigFilePath = Path.Combine(Directory.GetCurrentDirectory(), nugetConfig.Value);
@@ -46,7 +46,7 @@ namespace Afas.BazelDotnet
         var searchOption = repoCmd.Option("--search", "Specify folders to search", CommandOptionType.MultipleValue);
         
         repoCmd.HelpOption("-?|-h|--help");
-        repoCmd.OnExecute(async () =>
+        repoCmd.OnExecuteAsync(async _ =>
         {
           string path;
 
@@ -65,6 +65,20 @@ namespace Afas.BazelDotnet
           }
 
           GenerateBuildFiles(path, workspaceOption.Value(), exportsOption.Value(),  importsOption.Values, searchOption.Values);
+          return 0;
+        });
+      });
+
+      // This could be a rules_dotnet compile binary
+      app.Command("shim", repoCmd =>
+      {
+        var apphost = repoCmd.Argument("apphost", "The path to the workspace root");
+        var dll = repoCmd.Argument("dll", "The path to the workspace root");
+        
+        repoCmd.HelpOption("-?|-h|--help");
+        repoCmd.OnExecuteAsync(async _ =>
+        {
+          new AppHostShellShimMaker(apphost.Value).CreateApphostShellShim(dll.Value, Path.ChangeExtension(dll.Value, ".exe"));
           return 0;
         });
       });
