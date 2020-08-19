@@ -74,7 +74,18 @@ namespace Afas.BazelDotnet.Project
         var include = descendant.Attribute("Include").Value;
         var name = Path.GetFileNameWithoutExtension(include);
 
-        ProjectReference.Add(projectLabels[name]);
+        if(importLabels.ContainsKey(name))
+        {
+          ProjectReference.Add(importLabels[name]);
+        }
+        else if(projectLabels.ContainsKey(name))
+        {
+          ProjectReference.Add(projectLabels[name]);
+        }
+        else
+        {
+          throw new Exception($"Unable to find ProjectReference {name}");
+        }
       }
 
       foreach(var resource in document.Descendants("EmbeddedResource"))

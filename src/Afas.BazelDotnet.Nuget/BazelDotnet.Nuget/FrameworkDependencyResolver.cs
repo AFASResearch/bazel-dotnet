@@ -144,6 +144,7 @@ namespace Afas.BazelDotnet.Nuget
             frameworkList.Where(pair => !winningPackages.ContainsKey(pair.Key)).Select(pair => pair.Value.file).ToArray())
         },
         runtimeItemGroups: Array.Empty<FrameworkSpecificGroup>(),
+        contentFileGroups: Array.Empty<FrameworkSpecificGroup>(),
         analyzerItemGroups: Array.Empty<FrameworkSpecificGroup>(),
         dependencyGroups: new []
         {

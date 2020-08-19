@@ -40,6 +40,7 @@ namespace Afas.BazelDotnet.Nuget
 
       var refItemGroups = new List<FrameworkSpecificGroup>();
       var runtimeItemGroups = new List<FrameworkSpecificGroup>();
+      var contentFileGroups = new List<FrameworkSpecificGroup>();
       var analyzerItemGroups = new List<FrameworkSpecificGroup>();
       var dependencyGroups = new List<PackageDependencyGroup>();
 
@@ -67,6 +68,9 @@ namespace Afas.BazelDotnet.Nuget
           _conventions.Patterns.NativeLibraries,
           buildAssemblies);
 
+        var bestContentFilesGroup = collection.FindBestItemGroup(criteria,
+          _conventions.Patterns.ContentFiles);
+
         // The analyzer dll's are published in analyzers/ or analyzers/dotnet/cs/
         var analyzerAssemblies = new PatternSet(_conventions.Properties, new []
         {
@@ -93,6 +97,11 @@ namespace Afas.BazelDotnet.Nuget
           static bool IsDll(ContentItem item) => item.Path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
         }
 
+        if(bestContentFilesGroup != null)
+        {
+          contentFileGroups.Add(new FrameworkSpecificGroup(target.Framework, bestContentFilesGroup.Items.Select(i => i.Path)));
+        }
+
         if(bestAnalyzerGroup != null)
         {
           analyzerItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestAnalyzerGroup.Items.Select(i => i.Path)));
@@ -101,7 +110,7 @@ namespace Afas.BazelDotnet.Nuget
         dependencyGroups.Add(NuGetFrameworkUtility.GetNearest(allPackageDependencyGroups, target.Framework));
       }
 
-      return new NugetRepositoryEntry(localPackageSourceInfo, refItemGroups, runtimeItemGroups, analyzerItemGroups, dependencyGroups);
+      return new NugetRepositoryEntry(localPackageSourceInfo, refItemGroups, runtimeItemGroups, contentFileGroups, analyzerItemGroups, dependencyGroups);
     }
 
     public NugetRepositoryEntry BuildFrameworkOverride(NugetRepositoryEntry entry, string frameworkOverride)
@@ -113,7 +122,7 @@ namespace Afas.BazelDotnet.Nuget
         {
           frameworkOverride,
         }),
-      }, Array.Empty<FrameworkSpecificGroup>(), Array.Empty<FrameworkSpecificGroup>(), entry.DependencyGroups);
+      }, Array.Empty<FrameworkSpecificGroup>(), Array.Empty<FrameworkSpecificGroup>(), Array.Empty<FrameworkSpecificGroup>(), entry.DependencyGroups);
     }
   }
 }

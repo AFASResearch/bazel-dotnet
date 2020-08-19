@@ -67,11 +67,12 @@ namespace Afas.BazelDotnet.Nuget
       foreach(var entryGroup in packages.GroupBy(e => e.LocalPackageSourceInfo.Package.Id, StringComparer.OrdinalIgnoreCase))
       {
         var id = entryGroup.Key.ToLower();
+        bool isSingle = entryGroup.Count() == 1;
 
         var content = $@"package(default_visibility = [""//visibility:public""])
 load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
 
-{string.Join("\n\n", entryGroup.Select(CreateTarget))}";
+{string.Join("\n\n", entryGroup.Select(e => CreateTarget(e, isSingle)))}";
 
         var filePath = $"{id}/BUILD";
         new FileInfo(filePath).Directory.Create();
@@ -81,11 +82,16 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
         foreach(var entry in entryGroup)
         {
           symlinks.Add(($"{id}/{entry.LocalPackageSourceInfo.Package.Version}", entry.LocalPackageSourceInfo.Package.ExpandedPath));
+
+          if(isSingle)
+          {
+            symlinks.Add(($"{id}/current", entry.LocalPackageSourceInfo.Package.ExpandedPath));
+          }
         }
       }
 
       File.WriteAllText("link.cmd", string.Join("\n", symlinks
-        .Select(sl => $@"mklink /D ""{sl.Item1}"" ""{sl.Item2}""")
+        .Select(sl => $@"mklink /J ""{sl.Item1}"" ""{sl.Item2}""")
         .Append("exit /b %errorlevel%")));
       var proc = Process.Start(new ProcessStartInfo("cmd.exe", "/C link.cmd"));
       proc.WaitForExit();
@@ -96,18 +102,36 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
       }
     }
 
-    private string CreateTarget(NugetRepositoryEntry package)
+    private IEnumerable<string> GetContentFiles(NugetRepositoryEntry package)
+    {
+      var group = package.ContentFileGroups.SingleOrDefault();
+      if(group?.Items.Any() == true)
+      {
+        // Symlink optimization to link the entire group folder e.g. contentFiles/any/netcoreapp3.1
+        // We assume all files in a group have the same prefix
+        //yield return string.Join('/', group.Items.First().Split('/').Take(3));
+
+        foreach(var item in group.Items)
+        {
+          yield return item;
+        }
+      }
+    }
+
+    private string CreateTarget(NugetRepositoryEntry package, bool isSingle)
     {
       var identity = package.LocalPackageSourceInfo.Package;
-      var libs = Array(package.RuntimeItemGroups.SingleOrDefault()?.Items.Select(v => $"{identity.Version}/{v}"));
-      var refs = Array(package.RefItemGroups.SingleOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{identity.Version}/{v}"));
-      var analyzers = Array(package.AnalyzerItemGroups.SingleOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{identity.Version}/{v}"));
+      var folder = isSingle ? "current" : identity.Version.ToString();
+      var libs = Array(package.RuntimeItemGroups.SingleOrDefault()?.Items.Select(v => $"{folder}/{v}"));
+      var refs = Array(package.RefItemGroups.SingleOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{folder}/{v}"));
+      var contentFiles = Array(GetContentFiles(package).Select(v => $"{folder}/{v}"));
+      var analyzers = Array(package.AnalyzerItemGroups.SingleOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{folder}/{v}"));
 
       var deps = Array(package.DependencyGroups.SingleOrDefault()?.Packages
         //.Where(p => !SdkList.Dlls.Contains(p.Id.ToLower()))
         .Select(p => $"//{p.Id.ToLower()}:netcoreapp3.1_core"));
 
-      return $@"exports_files(glob([""{identity.Version}/**""]))
+      return $@"exports_files(glob([""{folder}/**"", ""{identity.Version}/**""]))
 
 core_import_library(
   name = ""netcoreapp3.1_core"",
@@ -115,6 +139,7 @@ core_import_library(
   refs = [{refs}],
   analyzers = [{analyzers}],
   deps = [{deps}],
+  data = [{contentFiles}],
   version = ""{identity.Version}"",
 )";
     }
