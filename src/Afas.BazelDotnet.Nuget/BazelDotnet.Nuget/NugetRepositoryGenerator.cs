@@ -133,13 +133,20 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
 
       return $@"exports_files(glob([""{folder}/**"", ""{identity.Version}/**""]))
 
+filegroup(
+    name = ""content_files"",
+    srcs = glob([
+        ""{folder}/**"",
+    ]),
+)
+
 core_import_library(
   name = ""netcoreapp3.1_core"",
   libs = [{libs}],
   refs = [{refs}],
   analyzers = [{analyzers}],
   deps = [{deps}],
-  data = [{contentFiles}],
+  exports_files = [{contentFiles}],
   version = ""{identity.Version}"",
 )";
     }
