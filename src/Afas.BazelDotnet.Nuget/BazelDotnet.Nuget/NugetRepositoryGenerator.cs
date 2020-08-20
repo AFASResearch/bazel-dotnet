@@ -69,14 +69,14 @@ namespace Afas.BazelDotnet.Nuget
         var id = entryGroup.Key.ToLower();
         bool isSingle = entryGroup.Count() == 1;
 
-        var content = $@"package(default_visibility = [""//visibility:public""])
-load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
-
-{string.Join("\n\n", entryGroup.Select(e => CreateTarget(e, isSingle)))}";
-
-        var filePath = $"{id}/BUILD";
-        new FileInfo(filePath).Directory.Create();
-        File.WriteAllText(filePath, content);
+        if(isSingle)
+        {
+          WriteBuildFile(entryGroup.Single(), id);
+        }
+        else
+        {
+          WriteBuildFile(entryGroup, id);
+        }
 
         // Possibly link multiple versions
         foreach(var entry in entryGroup)
@@ -100,6 +100,36 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
       {
         throw new Exception("Creating symlinks exited non 0");
       }
+    }
+
+    private void WriteBuildFile(NugetRepositoryEntry entry, string id)
+    {
+      var content = $@"package(default_visibility = [""//visibility:public""])
+load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
+
+exports_files([""{id}/contentfiles.txt""])
+
+{CreateTarget(entry, isSingle: true)}";
+
+      var filePath = $"{id}/BUILD";
+      new FileInfo(filePath).Directory.Create();
+      File.WriteAllText(filePath, content);
+
+      // Also write a special file that lists the content files in this package.
+      // This is to work around the fact that we cannot easily expose folders.
+      File.WriteAllLines($"{id}/contentfiles.txt", GetContentFiles(entry).Select(v => $"current/{v}"));
+    }
+
+    private void WriteBuildFile(IGrouping<string, NugetRepositoryEntry> entryGroup, string id)
+    {
+      var content = $@"package(default_visibility = [""//visibility:public""])
+load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
+
+{string.Join("\n\n", entryGroup.Select(e => CreateTarget(e, isSingle: false)))}";
+
+      var filePath = $"{id}/BUILD";
+      new FileInfo(filePath).Directory.Create();
+      File.WriteAllText(filePath, content);
     }
 
     private IEnumerable<string> GetContentFiles(NugetRepositoryEntry package)
@@ -135,9 +165,7 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
 
 filegroup(
     name = ""content_files"",
-    srcs = glob([
-        ""{folder}/**"",
-    ]),
+    srcs = [{contentFiles}]
 )
 
 core_import_library(
