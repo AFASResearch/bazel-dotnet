@@ -107,7 +107,7 @@ namespace Afas.BazelDotnet.Nuget
       var content = $@"package(default_visibility = [""//visibility:public""])
 load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
 
-exports_files([""{id}/contentfiles.txt""])
+exports_files([""contentfiles.txt""])
 
 {CreateTarget(entry, isSingle: true)}";
 
@@ -174,7 +174,7 @@ core_import_library(
   refs = [{refs}],
   analyzers = [{analyzers}],
   deps = [{deps}],
-  exports_files = [{contentFiles}],
+  data = [{contentFiles}],
   version = ""{identity.Version}"",
 )";
     }

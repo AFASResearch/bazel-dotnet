@@ -44,9 +44,9 @@ namespace Afas.BazelDotnet
         var exportsOption = repoCmd.Option("-e|--exports", "Exports file with dictionary of provided project labels (PackageName=Label)", CommandOptionType.SingleOrNoValue);
         var importsOption = repoCmd.Option("-i|--imports", "Import files with dictionary of imported project labels (PackageName=Label)", CommandOptionType.MultipleValue);
         var searchOption = repoCmd.Option("--search", "Specify folders to search", CommandOptionType.MultipleValue);
-        
+
         repoCmd.HelpOption("-?|-h|--help");
-        repoCmd.OnExecuteAsync(async _ =>
+        repoCmd.OnExecute(() =>
         {
           string path;
 
@@ -74,15 +74,15 @@ namespace Afas.BazelDotnet
       {
         var apphost = repoCmd.Argument("apphost", "The path to the workspace root");
         var dll = repoCmd.Argument("dll", "The path to the workspace root");
-        
+
         repoCmd.HelpOption("-?|-h|--help");
-        repoCmd.OnExecuteAsync(async _ =>
+        repoCmd.OnExecute(() =>
         {
           new AppHostShellShimMaker(apphost.Value).CreateApphostShellShim(dll.Value, Path.ChangeExtension(dll.Value, ".exe"));
           return 0;
         });
       });
-      
+
       if(!args.Any())
       {
         app.ShowHelp();
