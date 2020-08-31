@@ -11,7 +11,6 @@ namespace Afas.BazelDotnet.Project
     private readonly string _workspace;
     private readonly string _nugetWorkspace;
     private readonly IReadOnlyDictionary<string, string> _importLabels;
-    private IReadOnlyDictionary<string, string> _projectLabels;
 
     public CsProjBuildFileGenerator(string workspace, string nugetWorkspace, IReadOnlyDictionary<string, string> imports)
     {
@@ -31,8 +30,6 @@ namespace Afas.BazelDotnet.Project
         .Where(p => !p.Contains("bazel-"))
         .ToArray();
 
-      _projectLabels = files.ToDictionary(Path.GetFileNameWithoutExtension, ToLabel, StringComparer.OrdinalIgnoreCase);
-
       foreach(var projectFile in files)
       {
         var definition = FindAndParseProjectFile(_workspace, projectFile);
@@ -47,7 +44,9 @@ namespace Afas.BazelDotnet.Project
 
       if(!string.IsNullOrEmpty(exportsFileName))
       {
-        var values = _projectLabels.Select(l => $"{l.Key}={l.Value}");
+        var values = files
+          .ToDictionary(Path.GetFileNameWithoutExtension, ToLabel, StringComparer.OrdinalIgnoreCase)
+          .Select(l => $"{l.Key}={l.Value}");
         File.WriteAllText(exportsFileName, $"{string.Join("\n", values)}");
       }
     }
@@ -64,7 +63,7 @@ namespace Afas.BazelDotnet.Project
     private CsProjectFileDefinition FindAndParseProjectFile(string solutionBasePath, string projectFilePath)
     {
       var definition = new CsProjectFileDefinition(projectFilePath, solutionBasePath);
-      return definition.Deserialize(_projectLabels, _importLabels, XDocument.Load(projectFilePath));
+      return definition.Deserialize(ToLabel, _importLabels, projectFilePath);
     }
   }
 }

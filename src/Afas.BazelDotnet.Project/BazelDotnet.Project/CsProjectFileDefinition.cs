@@ -35,8 +35,12 @@ namespace Afas.BazelDotnet.Project
 
     public List<string> CopyToOutput { get; }
 
-    public CsProjectFileDefinition Deserialize(IReadOnlyDictionary<string, string> projectLabels, IReadOnlyDictionary<string, string> importLabels, XDocument document)
+    public CsProjectFileDefinition Deserialize(Func<string, string> csprojToLabel,
+      IReadOnlyDictionary<string, string> importLabels, string projectFilePath)
     {
+      var document = XDocument.Load(projectFilePath);
+      var projectFileDir = Path.GetDirectoryName(projectFilePath);
+
       Type = GetProjectType(document);
 
       foreach(var reference in document.Descendants("PackageReference"))
@@ -46,10 +50,6 @@ namespace Afas.BazelDotnet.Project
         if(importLabels.ContainsKey(name))
         {
           ProjectReference.Add(importLabels[name]);
-        }
-        else if(name.StartsWith("Afas.Generator", StringComparison.OrdinalIgnoreCase) || projectLabels.ContainsKey(name))
-        {
-          ProjectReference.Add(projectLabels[name]);
         }
         else
         {
@@ -81,13 +81,9 @@ namespace Afas.BazelDotnet.Project
         {
           ProjectReference.Add(importLabels[name]);
         }
-        else if(projectLabels.ContainsKey(name))
-        {
-          ProjectReference.Add(projectLabels[name]);
-        }
         else
         {
-          throw new Exception($"Unable to find ProjectReference {name}");
+          ProjectReference.Add(csprojToLabel(Path.Combine(projectFileDir, include)));
         }
       }
 
