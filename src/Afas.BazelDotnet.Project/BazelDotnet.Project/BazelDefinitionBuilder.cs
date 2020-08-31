@@ -27,7 +27,8 @@ namespace Afas.BazelDotnet.Project
         GetDependencies().ToArray(),
         GetResources(),
         GetResx(),
-        _definition.CopyToOutput
+        _definition.CopyToOutput,
+        _definition.BazelData
       );
     }
 

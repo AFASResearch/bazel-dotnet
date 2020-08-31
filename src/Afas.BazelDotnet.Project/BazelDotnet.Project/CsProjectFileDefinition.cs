@@ -16,6 +16,7 @@ namespace Afas.BazelDotnet.Project
         "Microsoft.NETCore.App.Ref",
       };
       ProjectReference = new List<string>();
+      BazelData = new List<string>();
       EmbeddedResources = new List<EmbeddedResourceDefinition>();
       CopyToOutput = new List<string>();
     }
@@ -27,6 +28,8 @@ namespace Afas.BazelDotnet.Project
     public List<string> PackageReferences { get; }
 
     public List<string> ProjectReference { get; }
+
+    public List<string> BazelData { get; }
 
     public List<EmbeddedResourceDefinition> EmbeddedResources { get; }
 
@@ -86,6 +89,11 @@ namespace Afas.BazelDotnet.Project
         {
           throw new Exception($"Unable to find ProjectReference {name}");
         }
+      }
+
+      foreach(var bazelDataArray in document.Descendants("BazelData"))
+      {
+        BazelData.AddRange(bazelDataArray.Value.Split(';'));
       }
 
       foreach(var resource in document.Descendants("EmbeddedResource"))

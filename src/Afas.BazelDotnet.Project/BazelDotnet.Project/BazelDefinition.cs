@@ -12,6 +12,7 @@ namespace Afas.BazelDotnet.Project
       IReadOnlyCollection<string> srcPatterns, IReadOnlyCollection<string> deps,
       (IReadOnlyCollection<string>, IReadOnlyCollection<string>)? resources,
       IReadOnlyCollection<string> resx,
+      List<string> dataFiles,
       List<string> data)
     {
       Label = label;
@@ -21,6 +22,7 @@ namespace Afas.BazelDotnet.Project
       Deps = deps;
       Resources = resources;
       Resx = resx;
+      DataFiles = dataFiles;
       Data = data;
     }
 
@@ -37,6 +39,8 @@ namespace Afas.BazelDotnet.Project
     public (IReadOnlyCollection<string> includes, IReadOnlyCollection<string> excludes)? Resources { get; }
 
     public IReadOnlyCollection<string> Resx { get; }
+
+    public List<string> DataFiles { get; }
 
     public List<string> Data { get; }
 
@@ -127,13 +131,25 @@ resources.append(""{name}"")";
 
     private string RenderData()
     {
-      if(!Data.Any())
+      if(!Data.Any() && !DataFiles.Any())
       {
         return string.Empty;
       }
 
+      if(Data.Any() && DataFiles.Any())
+      {
+        return $@"
+  data = [{string.Join(", ", Data.Select(Quote))}] + glob([{string.Join(", ", DataFiles.Select(Quote))}], exclude = [""**/obj/**"", ""**/bin/**""]),";
+      }
+
+      if(Data.Any())
+      {
+        return $@"
+  data = [{string.Join(", ", Data.Select(Quote))}],";
+      }
+
       return $@"
-  data = glob([{string.Join(", ", Data.Select(Quote))}], exclude = [""**/obj/**"", ""**/bin/**""]),";
+  data = [glob([{string.Join(", ", DataFiles.Select(Quote))}], exclude = [""**/obj/**"", ""**/bin/**""]),";
     }
 
     private string WriteRule()
