@@ -133,23 +133,20 @@ resources.append(""{name}"")";
     {
       if(!Data.Any() && !DataFiles.Any())
       {
-        return string.Empty;
+        return "[]";
       }
 
       if(Data.Any() && DataFiles.Any())
       {
-        return $@"
-  data = [{string.Join(", ", Data.Select(Quote))}] + glob([{string.Join(", ", DataFiles.Select(Quote))}], exclude = [""**/obj/**"", ""**/bin/**""]),";
+        return $@"[{string.Join(", ", Data.Select(Quote))}] + glob([{string.Join(", ", DataFiles.Select(Quote))}], exclude = [""**/obj/**"", ""**/bin/**""])";
       }
 
       if(Data.Any())
       {
-        return $@"
-  data = [{string.Join(", ", Data.Select(Quote))}],";
+        return $@"[{string.Join(", ", Data.Select(Quote))}]";
       }
 
-      return $@"
-  data = [glob([{string.Join(", ", DataFiles.Select(Quote))}], exclude = [""**/obj/**"", ""**/bin/**""]),";
+      return $@"glob([{string.Join(", ", DataFiles.Select(Quote))}], exclude = [""**/obj/**"", ""**/bin/**""])";
     }
 
     private string WriteRule()
@@ -157,11 +154,19 @@ resources.append(""{name}"")";
       return
         $@"{RenderLoad()}resources = []
 {RenderResources()}
+
+filegroup(
+  name = ""{Label}__data"",
+  srcs = {RenderData()},
+  visibility = [""//visibility:public""]
+)
+
 {Type}(
   name = ""{Label}"",
   out = ""{OutputAssembly}"",
   srcs = {string.Join(",\n", SrcPatterns)},
-  resources = resources,{RenderData()}
+  resources = resources,
+  data = ["":{Label}__data""],
   deps = [
     {string.Join(",\n    ", Deps.Select(Quote))}
   ],

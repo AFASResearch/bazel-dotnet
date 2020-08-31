@@ -165,7 +165,7 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
 
 filegroup(
     name = ""content_files"",
-    srcs = [{contentFiles}]
+    srcs = [{contentFiles}],
 )
 
 core_import_library(
@@ -174,7 +174,7 @@ core_import_library(
   refs = [{refs}],
   analyzers = [{analyzers}],
   deps = [{deps}],
-  data = [{contentFiles}],
+  data = ["":content_files""],
   version = ""{identity.Version}"",
 )";
     }

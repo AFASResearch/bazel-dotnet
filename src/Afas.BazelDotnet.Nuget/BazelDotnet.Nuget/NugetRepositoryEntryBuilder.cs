@@ -5,6 +5,7 @@ using NuGet.Client;
 using NuGet.ContentModel;
 using NuGet.Frameworks;
 using NuGet.Packaging;
+using NuGet.Packaging.Core;
 using NuGet.Repositories;
 
 namespace Afas.BazelDotnet.Nuget
@@ -37,6 +38,7 @@ namespace Afas.BazelDotnet.Nuget
       var collection = new ContentItemCollection();
       collection.Load(localPackageSourceInfo.Package.Files);
       var allPackageDependencyGroups = localPackageSourceInfo.Package.Nuspec.GetDependencyGroups().ToArray();
+      var frameworkReferenceGroups = localPackageSourceInfo.Package.Nuspec.GetFrameworkRefGroups().ToArray();
 
       var refItemGroups = new List<FrameworkSpecificGroup>();
       var runtimeItemGroups = new List<FrameworkSpecificGroup>();
@@ -107,7 +109,21 @@ namespace Afas.BazelDotnet.Nuget
           analyzerItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestAnalyzerGroup.Items.Select(i => i.Path)));
         }
 
-        dependencyGroups.Add(NuGetFrameworkUtility.GetNearest(allPackageDependencyGroups, target.Framework));
+        // Merge FrameworkReferences with normal PackageReferences
+        var dependencies = NuGetFrameworkUtility.GetNearest(allPackageDependencyGroups, target.Framework);
+        var frameworks = NuGetFrameworkUtility.GetNearest(frameworkReferenceGroups, target.Framework);
+
+        if(dependencies != null || frameworks != null)
+        {
+          dependencyGroups.Add(new PackageDependencyGroup(
+            dependencies?.TargetFramework ?? frameworks?.TargetFramework,
+            new[]
+              {
+                frameworks?.FrameworkReferences.Select(FrameworkDependencyResolver.ConvertToDependency),
+                dependencies?.Packages,
+              }
+              .SelectMany(v => v ?? Array.Empty<PackageDependency>())));
+        }
       }
 
       return new NugetRepositoryEntry(localPackageSourceInfo, refItemGroups, runtimeItemGroups, contentFileGroups, analyzerItemGroups, dependencyGroups);

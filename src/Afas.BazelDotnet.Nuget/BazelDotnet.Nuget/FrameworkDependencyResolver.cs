@@ -14,13 +14,13 @@ namespace Afas.BazelDotnet.Nuget
 {
   internal class FrameworkDependencyResolver
   {
-    private readonly IReadOnlyDictionary<string, string> _frameworkReferenceTargetPackMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    private static readonly IReadOnlyDictionary<string, string> _frameworkReferenceTargetPackMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
       ["Microsoft.NETCore.App"] = "Microsoft.NETCore.App.Ref",
       ["Microsoft.AspNetCore.App"] = "Microsoft.AspNetCore.App.Ref",
     };
 
-    private readonly IReadOnlyDictionary<string, string> _frameworkReferenceVersionsMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    private static readonly IReadOnlyDictionary<string, string> _frameworkReferenceVersionsMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
       ["netcoreapp3.0"] = "3.0.0",
       ["netcoreapp3.1"] = "3.1.0",
@@ -196,5 +196,8 @@ namespace Afas.BazelDotnet.Nuget
         .Select(l => l.Split("|"))
         .ToDictionary(s => s[0], s => NuGetVersion.Parse(s[1]), StringComparer.OrdinalIgnoreCase);
     }
+
+    public static PackageDependency ConvertToDependency(FrameworkReference framework) =>
+      new PackageDependency(_frameworkReferenceTargetPackMap[framework.Name]);
   }
 }
