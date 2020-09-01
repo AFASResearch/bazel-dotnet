@@ -71,14 +71,7 @@ namespace Afas.BazelDotnet.Project
     {
       foreach(var reference in _definition.PackageReferences)
       {
-        if(string.IsNullOrEmpty(_nugetWorkspace))
-        {
-          yield return $"@{reference.ToLower()}//:netcoreapp3.1_core";
-        }
-        else
-        {
-          yield return $"@{_nugetWorkspace}//{reference.ToLower()}:netcoreapp3.1_core";
-        }
+        yield return $"@{_nugetWorkspace}//{reference.ToLower()}";
       }
     }
 

@@ -159,7 +159,7 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
 
       var deps = Array(package.DependencyGroups.SingleOrDefault()?.Packages
         //.Where(p => !SdkList.Dlls.Contains(p.Id.ToLower()))
-        .Select(p => $"//{p.Id.ToLower()}:netcoreapp3.1_core"));
+        .Select(p => $"//{p.Id.ToLower()}"));
 
       return $@"exports_files(glob([""{folder}/**"", ""{identity.Version}/**""]))
 
@@ -169,7 +169,7 @@ filegroup(
 )
 
 core_import_library(
-  name = ""netcoreapp3.1_core"",
+  name = ""{identity.Id.ToLower()}"",
   libs = [{libs}],
   refs = [{refs}],
   analyzers = [{analyzers}],
