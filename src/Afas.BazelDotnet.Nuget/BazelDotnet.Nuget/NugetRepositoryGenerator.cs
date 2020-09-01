@@ -14,10 +14,12 @@ namespace Afas.BazelDotnet.Nuget
   public class NugetRepositoryGenerator
   {
     private readonly string _nugetConfig;
+    private readonly ILookup<string, (string target, string configSetting)> _imports;
 
-    public NugetRepositoryGenerator(string nugetConfig)
+    public NugetRepositoryGenerator(string nugetConfig, ILookup<string, (string target, string configSetting)> imports)
     {
       _nugetConfig = nugetConfig;
+      _imports = imports;
     }
 
     private async Task<NugetRepositoryEntry[]> ResolveLocalPackages(string targetFramework, string targetRuntime,
@@ -158,8 +160,24 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
       var analyzers = Array(package.AnalyzerItemGroups.SingleOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{folder}/{v}"));
 
       var deps = Array(package.DependencyGroups.SingleOrDefault()?.Packages
-        //.Where(p => !SdkList.Dlls.Contains(p.Id.ToLower()))
         .Select(p => $"//{p.Id.ToLower()}"));
+
+      var name = identity.Id.ToLower();
+      var alias = string.Empty;
+      if(_imports.Contains(name))
+      {
+        var selects = string.Join("\n", _imports[name].Select(i => $@"    ""{i.configSetting}"": ""{i.target}"","));
+        name += "__nuget";
+        alias = $@"
+alias(
+  name = ""{identity.Id.ToLower()}"",
+  actual = select({{
+{selects}
+    ""//conditions:default"": ""{name}"",
+  }})
+)
+";
+      }
 
       return $@"exports_files(glob([""{folder}/**"", ""{identity.Version}/**""]))
 
@@ -167,9 +185,9 @@ filegroup(
     name = ""content_files"",
     srcs = [{contentFiles}],
 )
-
+{alias}
 core_import_library(
-  name = ""{identity.Id.ToLower()}"",
+  name = ""{name}"",
   libs = [{libs}],
   refs = [{refs}],
   analyzers = [{analyzers}],
