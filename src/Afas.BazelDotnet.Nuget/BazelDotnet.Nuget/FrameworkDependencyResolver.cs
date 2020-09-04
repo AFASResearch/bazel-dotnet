@@ -66,7 +66,7 @@ namespace Afas.BazelDotnet.Nuget
           if(targetIsEmpty || packageOverrides[o] >= packagesLookup[o].Version)
           {
             overrides.Add(o, frameworkList.TryGetValue(o, out var frameworkItem)
-                ? $"//{targetPackage.Package.Id.ToLower()}:{targetPackage.Package.Version}/{frameworkItem.file}"
+                ? $"//{targetPackage.Package.Id.ToLower()}:current/{frameworkItem.file}"
                 : null);
           }
           else if(frameworkList.ContainsKey(o))
@@ -79,7 +79,7 @@ namespace Afas.BazelDotnet.Nuget
         {
           if(OverridesAssemblyVersion(c, frameworkList[c].version))
           {
-            overrides.Add(c, $"//{targetPackage.Package.Id.ToLower()}:{targetPackage.Package.Version}/{frameworkList[c].file}");
+            overrides.Add(c, $"//{targetPackage.Package.Id.ToLower()}:current/{frameworkList[c].file}");
           }
           else
           {
