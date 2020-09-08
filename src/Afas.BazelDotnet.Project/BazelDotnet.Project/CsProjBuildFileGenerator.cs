@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Xml.Linq;
+using System.Threading.Tasks;
 
 namespace Afas.BazelDotnet.Project
 {
@@ -19,7 +19,21 @@ namespace Afas.BazelDotnet.Project
       _importLabels = imports;
     }
 
-    public void GlobAllProjects(IReadOnlyCollection<string> searchFolders = null, string extension = "csproj", string exportsFileName = null)
+    private static void WriteFileIfChanged(string path, string newContents)
+    {
+      using var buildFileStream = File.Open(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+      using var reader = new StreamReader(buildFileStream);
+
+      // only write to the file when we have changes so we do not introduce git diff's
+      if(!string.Equals(newContents, reader.ReadToEnd(), StringComparison.OrdinalIgnoreCase))
+      {
+        buildFileStream.SetLength(0);
+        using var writer = new StreamWriter(buildFileStream);
+        writer.Write(newContents);
+      }
+    }
+
+    public async Task GlobAllProjects(IReadOnlyCollection<string> searchFolders = null, string extension = "csproj", string exportsFileName = null)
     {
       var filesEnum = searchFolders?.Any() == true ? searchFolders.SelectMany(f =>
           Directory.EnumerateFiles(Path.Combine(_workspace, f), $"*.{extension}", SearchOption.AllDirectories))
@@ -30,17 +44,15 @@ namespace Afas.BazelDotnet.Project
         .Where(p => !p.Contains("bazel-"))
         .ToArray();
 
-      foreach(var projectFile in files)
+      await Task.WhenAll(files.Select(projectFile => Task.Run(() =>
       {
         var definition = FindAndParseProjectFile(_workspace, projectFile);
-        var bazelDefinition = new BazelDefinitionBuilder(definition, _nugetWorkspace).Build();
 
-        var file = Path.Combine(Path.GetDirectoryName(projectFile), "BUILD");
-        using(var stream = new StreamWriter(File.Open(file, FileMode.Create, FileAccess.ReadWrite, FileShare.None)))
-        {
-          stream.Write(bazelDefinition.Serialize());
-        }
-      }
+        // only write to the file when we have changes so we do not introduce git diff's
+        WriteFileIfChanged(
+          Path.Combine(Path.GetDirectoryName(projectFile), "BUILD"),
+          new BazelDefinitionBuilder(definition, _nugetWorkspace).Build().Serialize());
+      }))).ConfigureAwait(false);
 
       if(!string.IsNullOrEmpty(exportsFileName))
       {

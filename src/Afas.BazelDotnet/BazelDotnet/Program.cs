@@ -47,7 +47,7 @@ namespace Afas.BazelDotnet
         var searchOption = repoCmd.Option("--search", "Specify folders to search", CommandOptionType.MultipleValue);
 
         repoCmd.HelpOption("-?|-h|--help");
-        repoCmd.OnExecute(() =>
+        repoCmd.OnExecuteAsync(async _ =>
         {
           string path;
 
@@ -65,7 +65,7 @@ namespace Afas.BazelDotnet
             }
           }
 
-          GenerateBuildFiles(path, workspaceOption.Value(), exportsOption.Value(),  importsOption.Values, searchOption.Values);
+          await GenerateBuildFiles(path, workspaceOption.Value(), exportsOption.Value(), importsOption.Values, searchOption.Values).ConfigureAwait(false);
           return 0;
         });
       });
@@ -139,13 +139,13 @@ namespace Afas.BazelDotnet
         .ConfigureAwait(false);
     }
 
-    private static void GenerateBuildFiles(string workspace, string nugetWorkspace, string exportsFileName = null,
+    private static Task GenerateBuildFiles(string workspace, string nugetWorkspace, string exportsFileName = null,
       IReadOnlyCollection<string> importMappings = null, IReadOnlyCollection<string> searchFolders = null)
     {
       var imports = ParseImports(importMappings)
         .ToDictionary(i => i.project, i => i.target);
 
-      new CsProjBuildFileGenerator(workspace, nugetWorkspace, imports).GlobAllProjects(searchFolders, exportsFileName: exportsFileName);
+      return new CsProjBuildFileGenerator(workspace, nugetWorkspace, imports).GlobAllProjects(searchFolders, exportsFileName: exportsFileName);
     }
 
     private static IEnumerable<(string project, string target, string configSetting)> ParseImports(IReadOnlyCollection<string> importMappings = null)
