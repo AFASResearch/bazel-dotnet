@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Afas.BazelDotnet.Project
 {
@@ -49,7 +49,7 @@ namespace Afas.BazelDotnet.Project
       // load
       // package
       // rules
-      return WriteRule();
+      return Regex.Replace(WriteRule(), "(?<!\r)\n", "\r\n");
     }
 
     private IEnumerable<string> GetUsedMethods()
