@@ -11,12 +11,14 @@ namespace Afas.BazelDotnet.Project
     private readonly string _workspace;
     private readonly string _nugetWorkspace;
     private readonly IReadOnlyDictionary<string, string> _importLabels;
+    private readonly string _appendString;
 
-    public CsProjBuildFileGenerator(string workspace, string nugetWorkspace, IReadOnlyDictionary<string, string> imports)
+    public CsProjBuildFileGenerator(string workspace, string nugetWorkspace, IReadOnlyDictionary<string, string> imports, string appendString)
     {
       _workspace = workspace;
       _nugetWorkspace = nugetWorkspace;
       _importLabels = imports;
+      _appendString = appendString;
     }
 
     private static void WriteFileIfChanged(string path, string newContents)
@@ -51,7 +53,7 @@ namespace Afas.BazelDotnet.Project
         // only write to the file when we have changes so we do not introduce git diff's
         WriteFileIfChanged(
           Path.Combine(Path.GetDirectoryName(projectFile), "BUILD"),
-          new BazelDefinitionBuilder(definition, _nugetWorkspace).Build().Serialize());
+          new BazelDefinitionBuilder(definition, _nugetWorkspace).Build().Serialize(_appendString));
       }))).ConfigureAwait(false);
 
       if(!string.IsNullOrEmpty(exportsFileName))

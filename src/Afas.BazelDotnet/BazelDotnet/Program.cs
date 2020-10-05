@@ -22,6 +22,8 @@ namespace Afas.BazelDotnet
 
       app.HelpOption("-?|-h|--help");
 
+      // set the WorkingDir!
+      // repository C:/Anta/platform/nuget.config -p C:/Anta/platform/Packages.Props
       app.Command("repository", repoCmd =>
       {
         var nugetConfig = repoCmd.Argument("nugetConfig", "The path to the Packages.Props file");
@@ -38,6 +40,7 @@ namespace Afas.BazelDotnet
         });
       });
 
+      // projects --path=C:/Anta/platform --search=generator --workspace=nuget
       app.Command("projects", repoCmd =>
       {
         var pathOption = repoCmd.Option("-p|--path", "The path to the workspace root", CommandOptionType.SingleOrNoValue);
@@ -45,6 +48,7 @@ namespace Afas.BazelDotnet
         var exportsOption = repoCmd.Option("-e|--exports", "Exports file with dictionary of provided project labels (PackageName=Label)", CommandOptionType.SingleOrNoValue);
         var importsOption = repoCmd.Option("-i|--imports", "Import files with dictionary of imported project labels (PackageName=Label)", CommandOptionType.MultipleValue);
         var searchOption = repoCmd.Option("--search", "Specify folders to search", CommandOptionType.MultipleValue);
+        var appendOption = repoCmd.Option("--append", "Specify a file which contents should be appended to each BUILD file.", CommandOptionType.MultipleValue);
 
         repoCmd.HelpOption("-?|-h|--help");
         repoCmd.OnExecuteAsync(async _ =>
@@ -65,7 +69,7 @@ namespace Afas.BazelDotnet
             }
           }
 
-          await GenerateBuildFiles(path, workspaceOption.Value(), exportsOption.Value(), importsOption.Values, searchOption.Values).ConfigureAwait(false);
+          await GenerateBuildFiles(path, workspaceOption.Value(), exportsOption.Value(), importsOption.Values, searchOption.Values, appendOption.Values).ConfigureAwait(false);
           return 0;
         });
       });
@@ -139,13 +143,16 @@ namespace Afas.BazelDotnet
         .ConfigureAwait(false);
     }
 
-    private static Task GenerateBuildFiles(string workspace, string nugetWorkspace, string exportsFileName = null,
-      IReadOnlyCollection<string> importMappings = null, IReadOnlyCollection<string> searchFolders = null)
+    private static Task GenerateBuildFiles(string workspace, string nugetWorkspace, string exportsFileName,
+      IReadOnlyCollection<string> importMappings, IReadOnlyCollection<string> searchFolders, IReadOnlyCollection<string> appendOptionValues)
     {
       var imports = ParseImports(importMappings)
         .ToDictionary(i => i.project, i => i.target);
 
-      return new CsProjBuildFileGenerator(workspace, nugetWorkspace, imports).GlobAllProjects(searchFolders, exportsFileName: exportsFileName);
+      var appendString = appendOptionValues?.Any() != true ? null :
+        string.Join("\r\n", appendOptionValues.Select(File.ReadAllText));
+
+      return new CsProjBuildFileGenerator(workspace, nugetWorkspace, imports, appendString).GlobAllProjects(searchFolders, exportsFileName: exportsFileName);
     }
 
     private static IEnumerable<(string project, string target, string configSetting)> ParseImports(IReadOnlyCollection<string> importMappings = null)
@@ -159,23 +166,35 @@ namespace Afas.BazelDotnet
       foreach(var importMapping in importMappings)
       {
         var split = importMapping.Split("="); // @projects=C:/bazel/external/projects/.exports
-        var repo = split[0];
+        var repoOrTarget = split[0]; // @backend//src/Afas.Cqrs:Afas.Cqrs.Definitions==@platform//:use_local_backend
         var file = split[1];
         string configSetting = split.Length > 2 ? split[2] : null; // @backend=C:/bazel/external/backend/.exports=@platform//:use_local_backend
 
-        var lines = File.ReadAllLines(file)
-          .Select(l => l.Trim())
-          .Where(l => !string.IsNullOrEmpty(l));
-
-        // parse exports_file lines {project_name}={local_target_name}
-        foreach(var line in lines)
+        if(string.IsNullOrEmpty(file))
         {
-          var splitLine = line.Split("="); // Project=//src/Project:Project
-          var project = splitLine[0];
-          var target = splitLine[1];
+          if(!repoOrTarget.Contains(":"))
+          {
+            throw new Exception("Received an import without a targetname or mapping file");
+          }
 
-          // return mapping for project to global_target_name (with repo prefix)
-          yield return (project, $"{repo}{target}", configSetting); // (Project, @projects//src/Project:Project)
+          yield return (repoOrTarget.Split(":")[1], repoOrTarget, configSetting);
+        }
+        else
+        {
+          var lines = File.ReadAllLines(file)
+            .Select(l => l.Trim())
+            .Where(l => !string.IsNullOrEmpty(l));
+
+          // parse exports_file lines {project_name}={local_target_name}
+          foreach(var line in lines)
+          {
+            var splitLine = line.Split("="); // Project=//src/Project:Project
+            var project = splitLine[0];
+            var target = splitLine[1];
+
+            // return mapping for project to global_target_name (with repo prefix)
+            yield return (project, $"{repoOrTarget}{target}", configSetting); // (Project, @projects//src/Project:Project)
+          }
         }
       }
     }
