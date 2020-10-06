@@ -157,7 +157,7 @@ namespace Afas.BazelDotnet
 
       var visibilityOptions = visibilityOptionValues
         .Select(o => o.Split('='))
-        .ToDictionary(o => o[0], o => o[1], StringComparer.OrdinalIgnoreCase);
+        .ToDictionary(o => o[0].Replace('/', '\\'), o => o[1], StringComparer.OrdinalIgnoreCase);
 
       return new CsProjBuildFileGenerator(workspace, nugetWorkspace, imports, appendString, visibilityOptions)
         .GlobAllProjects(searchFolders, exportsFileName: exportsFileName);
