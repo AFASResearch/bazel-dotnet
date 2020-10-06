@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace Afas.BazelDotnet.Project
@@ -12,10 +13,10 @@ namespace Afas.BazelDotnet.Project
     private readonly string _nugetWorkspace;
     private readonly IReadOnlyDictionary<string, string> _importLabels;
     private readonly string _appendString;
-    private readonly IReadOnlyDictionary<string, string> _visibilityOptions;
+    private readonly IReadOnlyDictionary<string, string[]> _visibilityOptions;
 
     public CsProjBuildFileGenerator(string workspace, string nugetWorkspace, IReadOnlyDictionary<string, string> imports, string appendString,
-      IReadOnlyDictionary<string, string> visibilityOptions)
+      Dictionary<string, string[]> visibilityOptions)
     {
       _workspace = workspace;
       _nugetWorkspace = nugetWorkspace;
@@ -75,13 +76,37 @@ namespace Afas.BazelDotnet.Project
 
     private string GetVisibility(string projectFile)
     {
-      foreach(var (pattern, visibility) in _visibilityOptions)
+      foreach(var (pattern, visibilities) in _visibilityOptions)
       {
         // Currently not supporting actual glob
         var p = pattern.EndsWith("**") ? Path.GetDirectoryName(pattern) : pattern;
-        if(projectFile.StartsWith($".\\{p}", StringComparison.OrdinalIgnoreCase))
+        var prefix = $".\\{p}";
+        if(projectFile.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
         {
-          return visibility;
+          return string.Join(@""", """, visibilities.Select(ReplaceWildcards));
+
+          string ReplaceWildcards(string label)
+          {
+            var index = label.IndexOf('*');
+            if(index < 0)
+            {
+              return label;
+            }
+
+            int pindex = 0;
+            int i = 0;
+            var substitutions = projectFile.Substring(prefix.Length + 1).Split('\\');
+            var sb = new StringBuilder();
+            while(index >= 0)
+            {
+              sb.Append(label.Substring(pindex, index - pindex));
+              sb.Append(substitutions[i++]);
+              pindex = index + 1;
+              index = label.IndexOf('*', pindex);
+            }
+            sb.Append(label.Substring(pindex, label.Length - pindex));
+            return sb.ToString();
+          }
         }
       }
 
