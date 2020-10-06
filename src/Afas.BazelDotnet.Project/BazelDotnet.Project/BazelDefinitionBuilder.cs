@@ -10,6 +10,7 @@ namespace Afas.BazelDotnet.Project
   {
     private readonly CsProjectFileDefinition _definition;
     private readonly string _nugetWorkspace;
+    private string _visibility = BazelDefinition.DefaultVisibility;
 
     public BazelDefinitionBuilder(CsProjectFileDefinition definition, string nugetWorkspace)
     {
@@ -28,7 +29,8 @@ namespace Afas.BazelDotnet.Project
         GetResources(),
         GetResx(),
         _definition.CopyToOutput,
-        _definition.BazelData
+        _definition.BazelData,
+        _visibility
       );
     }
 
@@ -98,6 +100,12 @@ namespace Afas.BazelDotnet.Project
         default:
           throw new NotSupportedException($"{definition.Type} is not a supported project type");
       }
+    }
+
+    public BazelDefinitionBuilder Visibility(string target)
+    {
+      _visibility = target;
+      return this;
     }
   }
 }

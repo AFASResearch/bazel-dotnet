@@ -12,13 +12,16 @@ namespace Afas.BazelDotnet.Project
     private readonly string _nugetWorkspace;
     private readonly IReadOnlyDictionary<string, string> _importLabels;
     private readonly string _appendString;
+    private readonly IReadOnlyDictionary<string, string> _visibilityOptions;
 
-    public CsProjBuildFileGenerator(string workspace, string nugetWorkspace, IReadOnlyDictionary<string, string> imports, string appendString)
+    public CsProjBuildFileGenerator(string workspace, string nugetWorkspace, IReadOnlyDictionary<string, string> imports, string appendString,
+      IReadOnlyDictionary<string, string> visibilityOptions)
     {
       _workspace = workspace;
       _nugetWorkspace = nugetWorkspace;
       _importLabels = imports;
       _appendString = appendString;
+      _visibilityOptions = visibilityOptions;
     }
 
     private static void WriteFileIfChanged(string path, string newContents)
@@ -37,8 +40,10 @@ namespace Afas.BazelDotnet.Project
 
     public async Task GlobAllProjects(IReadOnlyCollection<string> searchFolders = null, string extension = "csproj", string exportsFileName = null)
     {
-      var filesEnum = searchFolders?.Any() == true ? searchFolders.SelectMany(f =>
-          Directory.EnumerateFiles(Path.Combine(_workspace, f), $"*.{extension}", SearchOption.AllDirectories))
+      var filesEnum = searchFolders?.Any() == true
+        ? searchFolders
+          .Select(f => f.Replace('/', '\\'))
+          .SelectMany(f => Directory.EnumerateFiles(Path.Combine(_workspace, f), $"*.{extension}", SearchOption.AllDirectories))
         : Directory.EnumerateFiles(_workspace, $"*.{extension}", SearchOption.AllDirectories);
 
       var files = filesEnum
@@ -53,7 +58,10 @@ namespace Afas.BazelDotnet.Project
         // only write to the file when we have changes so we do not introduce git diff's
         WriteFileIfChanged(
           Path.Combine(Path.GetDirectoryName(projectFile), "BUILD"),
-          new BazelDefinitionBuilder(definition, _nugetWorkspace).Build().Serialize(_appendString));
+          new BazelDefinitionBuilder(definition, _nugetWorkspace)
+            .Visibility(GetVisibility(projectFile))
+            .Build()
+            .Serialize(_appendString));
       }))).ConfigureAwait(false);
 
       if(!string.IsNullOrEmpty(exportsFileName))
@@ -63,6 +71,21 @@ namespace Afas.BazelDotnet.Project
           .Select(l => $"{l.Key}={l.Value}");
         File.WriteAllText(exportsFileName, $"{string.Join("\n", values)}");
       }
+    }
+
+    private string GetVisibility(string projectFile)
+    {
+      foreach(var (pattern, visibility) in _visibilityOptions)
+      {
+        // Currently not supporting actual glob
+        var p = pattern.EndsWith("**") ? Path.GetDirectoryName(pattern) : pattern;
+        if(projectFile.StartsWith($".\\{p}", StringComparison.OrdinalIgnoreCase))
+        {
+          return visibility;
+        }
+      }
+
+      return BazelDefinition.DefaultVisibility;
     }
 
     private string ToLabel(string csprojFilePath)

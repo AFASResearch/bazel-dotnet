@@ -8,12 +8,15 @@ namespace Afas.BazelDotnet.Project
 {
   internal class BazelDefinition
   {
+    internal const string DefaultVisibility = "//visibility:public";
+
     public BazelDefinition(string label, string type, string outputAssembly,
       IReadOnlyCollection<string> srcPatterns, IReadOnlyCollection<string> deps,
       (IReadOnlyCollection<string>, IReadOnlyCollection<string>)? resources,
       IReadOnlyCollection<string> resx,
       List<string> dataFiles,
-      List<string> data)
+      List<string> data,
+      string visibility = DefaultVisibility)
     {
       Label = label;
       Type = type;
@@ -24,6 +27,7 @@ namespace Afas.BazelDotnet.Project
       Resx = resx;
       DataFiles = dataFiles;
       Data = data;
+      Visibility = visibility;
     }
 
     public string Label { get; }
@@ -43,6 +47,8 @@ namespace Afas.BazelDotnet.Project
     public List<string> DataFiles { get; }
 
     public List<string> Data { get; }
+
+    public string Visibility { get; }
 
     public string Serialize(string appendString)
     {
@@ -164,7 +170,7 @@ name = ""{Label}""
 filegroup(
   name = ""{Label}__data"",
   srcs = {RenderData()},
-  visibility = [""//visibility:public""]
+  visibility = [""{Visibility}""]
 )
 
 {Type}(
@@ -177,7 +183,7 @@ filegroup(
     {string.Join(",\n    ", Deps.Select(Quote))}
   ],
   dotnet_context_data = ""//:afas_context_data"",
-  visibility = [""//visibility:public""]
+  visibility = [""{Visibility}""]
 ){processedAppendString}";
     }
 

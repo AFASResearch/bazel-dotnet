@@ -49,6 +49,7 @@ namespace Afas.BazelDotnet
         var importsOption = repoCmd.Option("-i|--imports", "Import files with dictionary of imported project labels (PackageName=Label)", CommandOptionType.MultipleValue);
         var searchOption = repoCmd.Option("--search", "Specify folders to search", CommandOptionType.MultipleValue);
         var appendOption = repoCmd.Option("--append", "Specify a file which contents should be appended to each BUILD file.", CommandOptionType.MultipleValue);
+        var visibilityOption = repoCmd.Option("-v|--visibility", "Specify {glob}={label} to define visibility for a set of generated BUILD files.", CommandOptionType.MultipleValue);
 
         repoCmd.HelpOption("-?|-h|--help");
         repoCmd.OnExecuteAsync(async _ =>
@@ -69,7 +70,8 @@ namespace Afas.BazelDotnet
             }
           }
 
-          await GenerateBuildFiles(path, workspaceOption.Value(), exportsOption.Value(), importsOption.Values, searchOption.Values, appendOption.Values).ConfigureAwait(false);
+          await GenerateBuildFiles(path, workspaceOption.Value(), exportsOption.Value(),
+            importsOption.Values, searchOption.Values, appendOption.Values, visibilityOption.Values).ConfigureAwait(false);
           return 0;
         });
       });
@@ -144,7 +146,8 @@ namespace Afas.BazelDotnet
     }
 
     private static Task GenerateBuildFiles(string workspace, string nugetWorkspace, string exportsFileName,
-      IReadOnlyCollection<string> importMappings, IReadOnlyCollection<string> searchFolders, IReadOnlyCollection<string> appendOptionValues)
+      IReadOnlyCollection<string> importMappings, IReadOnlyCollection<string> searchFolders,
+      IReadOnlyCollection<string> appendOptionValues, IReadOnlyCollection<string> visibilityOptionValues)
     {
       var imports = ParseImports(importMappings)
         .ToDictionary(i => i.project, i => i.target);
@@ -152,7 +155,12 @@ namespace Afas.BazelDotnet
       var appendString = appendOptionValues?.Any() != true ? null :
         string.Join("\r\n", appendOptionValues.Select(File.ReadAllText));
 
-      return new CsProjBuildFileGenerator(workspace, nugetWorkspace, imports, appendString).GlobAllProjects(searchFolders, exportsFileName: exportsFileName);
+      var visibilityOptions = visibilityOptionValues
+        .Select(o => o.Split('='))
+        .ToDictionary(o => o[0], o => o[1], StringComparer.OrdinalIgnoreCase);
+
+      return new CsProjBuildFileGenerator(workspace, nugetWorkspace, imports, appendString, visibilityOptions)
+        .GlobAllProjects(searchFolders, exportsFileName: exportsFileName);
     }
 
     private static IEnumerable<(string project, string target, string configSetting)> ParseImports(IReadOnlyCollection<string> importMappings = null)
