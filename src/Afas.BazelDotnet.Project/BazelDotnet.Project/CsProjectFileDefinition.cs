@@ -35,6 +35,8 @@ namespace Afas.BazelDotnet.Project
 
     public List<string> CopyToOutput { get; }
 
+    public bool TestOnly { get; private set; }
+
     public CsProjectFileDefinition Deserialize(Func<string, string> csprojToLabel,
       IReadOnlyDictionary<string, string> importLabels, string projectFilePath)
     {
@@ -123,6 +125,8 @@ namespace Afas.BazelDotnet.Project
           CopyToOutput.Add(include.Replace("\\", "/"));
         }
       }
+
+      TestOnly = string.Equals(document.Descendants("BazelTestOnly").LastOrDefault()?.Value, "true", StringComparison.OrdinalIgnoreCase);
 
       return this;
     }

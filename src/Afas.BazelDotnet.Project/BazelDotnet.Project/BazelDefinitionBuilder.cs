@@ -30,7 +30,8 @@ namespace Afas.BazelDotnet.Project
         GetResx(),
         _definition.CopyToOutput,
         _definition.BazelData,
-        _visibility
+        _visibility,
+        _definition.TestOnly
       );
     }
 

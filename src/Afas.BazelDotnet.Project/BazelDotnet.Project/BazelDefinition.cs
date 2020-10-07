@@ -16,7 +16,8 @@ namespace Afas.BazelDotnet.Project
       IReadOnlyCollection<string> resx,
       List<string> dataFiles,
       List<string> data,
-      string visibility = DefaultVisibility)
+      string visibility = DefaultVisibility,
+      bool testOnly = false)
     {
       Label = label;
       Type = type;
@@ -28,6 +29,7 @@ namespace Afas.BazelDotnet.Project
       DataFiles = dataFiles;
       Data = data;
       Visibility = visibility;
+      TestOnly = testOnly;
     }
 
     public string Label { get; }
@@ -49,6 +51,8 @@ namespace Afas.BazelDotnet.Project
     public List<string> Data { get; }
 
     public string Visibility { get; }
+
+    public bool TestOnly { get; }
 
     public string Serialize(string appendString)
     {
@@ -157,6 +161,14 @@ resources.append(""{name}"")";
 
     private string WriteRule(string appendString)
     {
+      var optionalProperties = string.Empty;
+
+      if(TestOnly)
+      {
+        optionalProperties += @"
+  testonly = True,";
+      }
+
       var processedAppendString = appendString == null ? null :
         @$"
 
@@ -175,7 +187,7 @@ filegroup(
 
 {Type}(
   name = ""{Label}"",
-  out = ""{OutputAssembly}"",
+  out = ""{OutputAssembly}"",{optionalProperties}
   srcs = {string.Join(",\n", SrcPatterns)},
   resources = resources,
   data = ["":{Label}__data""],
