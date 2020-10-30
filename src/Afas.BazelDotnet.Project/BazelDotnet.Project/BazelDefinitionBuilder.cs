@@ -21,6 +21,7 @@ namespace Afas.BazelDotnet.Project
     public BazelDefinition Build()
     {
       return new BazelDefinition(
+        _definition,
         Path.GetFileNameWithoutExtension(_definition.RelativeFilePath),
         GetRuleType(_definition),
         $"{Path.GetFileNameWithoutExtension(_definition.RelativeFilePath)}.dll",

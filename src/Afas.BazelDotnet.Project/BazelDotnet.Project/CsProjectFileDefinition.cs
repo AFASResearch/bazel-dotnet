@@ -8,6 +8,8 @@ namespace Afas.BazelDotnet.Project
 {
   internal class CsProjectFileDefinition
   {
+    private XDocument _document;
+
     public CsProjectFileDefinition(string projectFilePath, string slnBasePath)
     {
       RelativeFilePath = Path.GetRelativePath(slnBasePath, projectFilePath);
@@ -37,15 +39,17 @@ namespace Afas.BazelDotnet.Project
 
     public bool TestOnly { get; private set; }
 
+    public string ReadPropertyValue(string name) => _document.Descendants(name).LastOrDefault()?.Value;
+
     public CsProjectFileDefinition Deserialize(Func<string, string> csprojToLabel,
       IReadOnlyDictionary<string, string> importLabels, string projectFilePath)
     {
-      var document = XDocument.Load(projectFilePath);
+      _document = XDocument.Load(projectFilePath);
       var projectFileDir = Path.GetDirectoryName(projectFilePath);
 
-      Type = GetProjectType(document);
+      Type = GetProjectType(_document);
 
-      foreach(var reference in document.Descendants("PackageReference"))
+      foreach(var reference in _document.Descendants("PackageReference"))
       {
         var name = reference.Attribute("Include").Value;
 
@@ -67,14 +71,14 @@ namespace Afas.BazelDotnet.Project
         }
       }
 
-      foreach(var frameworkReference in document.Descendants("FrameworkReference"))
+      foreach(var frameworkReference in _document.Descendants("FrameworkReference"))
       {
         // TODO naming .Ref?
         var name = frameworkReference.Attribute("Include").Value;
         PackageReferences.Add($"{name}.Ref");
       }
 
-      foreach(var descendant in document.Descendants("ProjectReference"))
+      foreach(var descendant in _document.Descendants("ProjectReference"))
       {
         var include = descendant.Attribute("Include").Value;
         var name = Path.GetFileNameWithoutExtension(include);
@@ -89,12 +93,12 @@ namespace Afas.BazelDotnet.Project
         }
       }
 
-      foreach(var bazelDataArray in document.Descendants("BazelData"))
+      foreach(var bazelDataArray in _document.Descendants("BazelData"))
       {
         BazelData.AddRange(bazelDataArray.Value.Split(';'));
       }
 
-      foreach(var resource in document.Descendants("EmbeddedResource"))
+      foreach(var resource in _document.Descendants("EmbeddedResource"))
       {
         var include = resource.Attribute("Include")?.Value;
         var remove = resource.Attribute("Remove")?.Value;
@@ -114,7 +118,7 @@ namespace Afas.BazelDotnet.Project
         }
       }
 
-      foreach(var copyNode in document.Descendants("CopyToOutputDirectory"))
+      foreach(var copyNode in _document.Descendants("CopyToOutputDirectory"))
       {
         // PreserveNewest ?
 
@@ -126,7 +130,7 @@ namespace Afas.BazelDotnet.Project
         }
       }
 
-      TestOnly = string.Equals(document.Descendants("BazelTestOnly").LastOrDefault()?.Value, "true", StringComparison.OrdinalIgnoreCase);
+      TestOnly = string.Equals(_document.Descendants("BazelTestOnly").LastOrDefault()?.Value, "true", StringComparison.OrdinalIgnoreCase);
 
       return this;
     }

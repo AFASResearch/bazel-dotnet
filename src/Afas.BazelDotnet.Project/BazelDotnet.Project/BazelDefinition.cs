@@ -8,9 +8,10 @@ namespace Afas.BazelDotnet.Project
 {
   internal class BazelDefinition
   {
+    private readonly CsProjectFileDefinition _csProjectFileDefinition;
     internal const string DefaultVisibility = "//visibility:public";
 
-    public BazelDefinition(string label, string type, string outputAssembly,
+    public BazelDefinition(CsProjectFileDefinition csProjectFileDefinition, string label, string type, string outputAssembly,
       IReadOnlyCollection<string> srcPatterns, IReadOnlyCollection<string> deps,
       (IReadOnlyCollection<string>, IReadOnlyCollection<string>)? resources,
       IReadOnlyCollection<string> resx,
@@ -19,6 +20,7 @@ namespace Afas.BazelDotnet.Project
       string visibility = DefaultVisibility,
       bool testOnly = false)
     {
+      _csProjectFileDefinition = csProjectFileDefinition;
       Label = label;
       Type = type;
       OutputAssembly = outputAssembly;
@@ -169,6 +171,9 @@ resources.append(""{name}"")";
   testonly = True,";
       }
 
+      var srcs = _csProjectFileDefinition.ReadPropertyValue("BazelSrcs");
+      var srcsValue = string.IsNullOrEmpty(srcs) ? string.Join(",\n", SrcPatterns) : "srcs";
+
       var processedAppendString = appendString == null ? null :
         @$"
 
@@ -176,7 +181,7 @@ name = ""{Label}""
 {appendString}";
 
       return
-        $@"{RenderLoad()}resources = []
+        $@"{RenderLoad()}resources = []{srcs}
 {RenderResources()}
 
 filegroup(
@@ -188,7 +193,7 @@ filegroup(
 {Type}(
   name = ""{Label}"",
   out = ""{OutputAssembly}"",{optionalProperties}
-  srcs = {string.Join(",\n", SrcPatterns)},
+  srcs = {srcsValue},
   resources = resources,
   data = ["":{Label}__data""],
   deps = [
