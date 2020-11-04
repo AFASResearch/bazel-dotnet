@@ -98,7 +98,7 @@ namespace Afas.BazelDotnet.Nuget
     {
       var packages = await ResolveLocalPackages(targetFramework, targetRuntime, packageReferences).ConfigureAwait(false);
 
-      var symlinks = new HashSet<(string, string)>();
+      var symlinks = new HashSet<(string link, string target)>();
 
       foreach(var entryGroup in packages.GroupBy(e => e.LocalPackageSourceInfo.Package.Id, StringComparer.OrdinalIgnoreCase))
       {
@@ -126,9 +126,13 @@ namespace Afas.BazelDotnet.Nuget
         }
       }
 
-      File.WriteAllText("link.cmd", string.Join("\n", symlinks
-        .Select(sl => $@"mklink /J ""{sl.Item1}"" ""{sl.Item2}""")
-        .Append("exit /b %errorlevel%")));
+      File.WriteAllText("symlinks_manifest", string.Join("\n", symlinks
+        .Select(sl => $@"{sl.link} {sl.target}")));
+
+      File.WriteAllText("link.cmd", @"
+for /F ""usebackq tokens=1,2 delims= "" %%i in (""symlinks_manifest"") do mklink /J ""%%i"" ""%%j""
+exit /b %errorlevel%
+");
       var proc = Process.Start(new ProcessStartInfo("cmd.exe", "/C link.cmd"));
       proc.WaitForExit();
 
