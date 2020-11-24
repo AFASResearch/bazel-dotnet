@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using NuGet.Frameworks;
@@ -20,17 +21,23 @@ namespace Afas.BazelDotnet.Nuget
       ["Microsoft.AspNetCore.App"] = "Microsoft.AspNetCore.App.Ref",
     };
 
-    private static readonly IReadOnlyDictionary<string, string> _frameworkReferenceVersionsMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-    {
-      ["netcoreapp3.0"] = "3.0.0",
-      ["netcoreapp3.1"] = "3.1.0",
-    };
-
     private readonly TransitiveDependencyResolver _dependencyResolver;
 
     internal FrameworkDependencyResolver(TransitiveDependencyResolver dependencyResolver)
     {
       _dependencyResolver = dependencyResolver;
+    }
+
+    private static string GetFrameworkVersion(string targetFramework)
+    {
+      var match = Regex.Match(targetFramework, "(?:net|netcoreapp)([0-9]+\\.[0-9]+)");
+
+      if(!match.Success)
+      {
+        throw new Exception($"Unsupported targetFramework {targetFramework}");
+      }
+
+      return $"{match.Groups[1].Value}.0";
     }
 
     public async Task<(IReadOnlyCollection<NugetRepositoryEntry> entries, IReadOnlyDictionary<string, string> overrides)> ResolveFrameworkPackages(
@@ -157,7 +164,7 @@ namespace Afas.BazelDotnet.Nuget
     private async Task<LocalPackageSourceInfo> DownloadTargetPackage(string targetPackId, string targetFramework)
     {
       var packGraph = await _dependencyResolver
-        .ResolveFrameworkReference(targetPackId, _frameworkReferenceVersionsMap[targetFramework], targetFramework).ConfigureAwait(false);
+        .ResolveFrameworkReference(targetPackId, GetFrameworkVersion(targetFramework), targetFramework).ConfigureAwait(false);
 
       var packNode = packGraph.Flattened.Single();
       return await _dependencyResolver.DownloadPackage(packNode).ConfigureAwait(false);
