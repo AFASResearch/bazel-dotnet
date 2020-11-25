@@ -24,14 +24,14 @@ jobs:
       - name: Version tag
         id: version
         run: >
-          echo "TAG_VERSION=" + "${{ github.ref }}".Split("/")[-1] | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo ("TAG_VERSION=" + "${{ github.ref }}".Split("/")[-1]) | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Zip publish
         run: 7z a ${{ env.TAG_VERSION }}.zip src/Afas.BazelDotnet/bin/Release/netcoreapp3.1/publish/.
 
       - name: Get Hash
         run: >
-          echo "ZIP_HASH=" + (Get-FileHash ${{ env.TAG_VERSION }}.zip).Hash.tolower() | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo ("ZIP_HASH=" + (Get-FileHash ${{ env.TAG_VERSION }}.zip).Hash.tolower()) | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Create Release
         id: create_release
