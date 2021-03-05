@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using NuGet.Packaging;
 using NuGet.Repositories;
@@ -7,20 +8,21 @@ namespace Afas.BazelDotnet.Nuget
 {
   internal class NugetRepositoryEntry
   {
-    public NugetRepositoryEntry(
-      LocalPackageSourceInfo localPackageSourceInfo,
-      IReadOnlyCollection<FrameworkSpecificGroup> refItemGroups,
-      IReadOnlyCollection<FrameworkSpecificGroup> runtimeItemGroups,
-      IReadOnlyCollection<FrameworkSpecificGroup> contentFileGroups,
-      IReadOnlyCollection<FrameworkSpecificGroup> analyzerItemGroups,
-      IReadOnlyCollection<PackageDependencyGroup> dependencyGroups)
+    public NugetRepositoryEntry(LocalPackageSourceInfo localPackageSourceInfo,
+      List<FrameworkSpecificGroup> refItemGroups = null,
+      List<FrameworkSpecificGroup> runtimeItemGroups = null,
+      List<FrameworkSpecificGroup> debugRuntimeItemGroups = null,
+      List<FrameworkSpecificGroup> contentFileGroups = null,
+      List<FrameworkSpecificGroup> analyzerItemGroups = null,
+      List<PackageDependencyGroup> dependencyGroups = null)
     {
       LocalPackageSourceInfo = localPackageSourceInfo;
-      RefItemGroups = refItemGroups;
-      RuntimeItemGroups = runtimeItemGroups;
-      ContentFileGroups = contentFileGroups;
-      AnalyzerItemGroups = analyzerItemGroups;
-      DependencyGroups = dependencyGroups;
+      RefItemGroups = refItemGroups ?? new List<FrameworkSpecificGroup>();
+      RuntimeItemGroups = runtimeItemGroups ?? new List<FrameworkSpecificGroup>();
+      DebugRuntimeItemGroups = debugRuntimeItemGroups ?? new List<FrameworkSpecificGroup>();
+      ContentFileGroups = contentFileGroups ?? new List<FrameworkSpecificGroup>();
+      AnalyzerItemGroups = analyzerItemGroups ?? new List<FrameworkSpecificGroup>();
+      DependencyGroups = dependencyGroups ?? new List<PackageDependencyGroup>();
     }
 
     public LocalPackageSourceInfo LocalPackageSourceInfo { get; }
@@ -29,14 +31,16 @@ namespace Afas.BazelDotnet.Nuget
 
     public string Id => LocalPackageSourceInfo.Package.Id;
 
-    public IReadOnlyCollection<FrameworkSpecificGroup> RefItemGroups { get; }
+    public List<FrameworkSpecificGroup> RefItemGroups { get; }
 
-    public IReadOnlyCollection<FrameworkSpecificGroup> RuntimeItemGroups { get; }
+    public List<FrameworkSpecificGroup> RuntimeItemGroups { get; }
 
-    public IReadOnlyCollection<FrameworkSpecificGroup> ContentFileGroups { get; }
+    public List<FrameworkSpecificGroup> DebugRuntimeItemGroups { get; }
 
-    public IReadOnlyCollection<FrameworkSpecificGroup> AnalyzerItemGroups { get; }
+    public List<FrameworkSpecificGroup> ContentFileGroups { get; }
 
-    public IReadOnlyCollection<PackageDependencyGroup> DependencyGroups { get; }
+    public List<FrameworkSpecificGroup> AnalyzerItemGroups { get; }
+
+    public List<PackageDependencyGroup> DependencyGroups { get; }
   }
 }

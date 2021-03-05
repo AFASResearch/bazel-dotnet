@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using NuGet.Common;
 using NuGet.Configuration;
@@ -192,57 +193,92 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
     {
       var identity = package.LocalPackageSourceInfo.Package;
       var folder = isSingle ? "current" : identity.Version.ToString();
-      var libs = Array(package.RuntimeItemGroups.SingleOrDefault()?.Items.Select(v => $"{folder}/{v}"));
-      var refs = Array(package.RefItemGroups.SingleOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{folder}/{v}"));
-      var contentFiles = Array(GetContentFiles(package).Select(v => $"{folder}/{v}"));
-      var analyzers = Array(package.AnalyzerItemGroups.SingleOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{folder}/{v}"));
 
-      var deps = Array(package.DependencyGroups.SingleOrDefault()?.Packages
-        .Select(p => $"//{p.Id.ToLower()}"));
-
-      var name = identity.Id.ToLower();
-      var alias = string.Empty;
-      if(_imports.Contains(name))
+      IEnumerable<string> Elems()
       {
-        var selects = string.Join("\n", _imports[name].Select(i => $@"    ""{i.configSetting}"": ""{i.target}"","));
-        name += "__nuget";
-        alias = $@"
-alias(
+        yield return $@"exports_files(glob([""{folder}/**"", ""{identity.Version}/**""]))";
+
+        yield return $@"filegroup(
+  name = ""content_files"",
+  srcs = {StringArray(GetContentFiles(package).Select(v => $"{folder}/{v}"))},
+)";
+
+        var name = identity.Id.ToLower();
+
+        if(_imports.Contains(name))
+        {
+          var selects = _imports[name].ToDictionary(i => i.configSetting, i => i.target);
+          name += "__nuget";
+          selects["//conditions:default"] = name;
+
+          yield return $@"alias(
   name = ""{identity.Id.ToLower()}"",
-  actual = select({{
-{selects}
-    ""//conditions:default"": ""{name}"",
-  }})
-)
-";
-      }
+  actual = select({Indent(Dict(selects))})
+)";
+        }
 
-      return $@"exports_files(glob([""{folder}/**"", ""{identity.Version}/**""]))
+        bool hasDebugDlls = package.DebugRuntimeItemGroups.Count != 0;
+        var libs = StringArray(package.RuntimeItemGroups.SingleOrDefault()?.Items.Select(v => $"{folder}/{v}"));
 
-filegroup(
-    name = ""content_files"",
-    srcs = [{contentFiles}],
-)
-{alias}
-core_import_library(
+        if(hasDebugDlls)
+        {
+          yield return @"
+config_setting(
+  name = ""compilation_mode_dbg"",
+  values = {
+    ""compilation_mode"": ""dbg"",
+  },
+)";
+          libs = Indent($@"select({{
+  "":compilation_mode_dbg"": {StringArray(package.DebugRuntimeItemGroups.Single().Items.Select(v => $"{folder}/{v}"))},
+  ""//conditions:default"": {libs},
+}})");
+        }
+
+
+        yield return $@"core_import_library(
   name = ""{name}"",
-  libs = [{libs}],
-  refs = [{refs}],
-  analyzers = [{analyzers}],
-  deps = [{deps}],
+  libs = {libs},
+  refs = {StringArray(package.RefItemGroups.SingleOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{folder}/{v}"))},
+  analyzers = {StringArray(package.AnalyzerItemGroups.SingleOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{folder}/{v}"))},
+  deps = {StringArray(package.DependencyGroups.SingleOrDefault()?.Packages.Select(p => $"//{p.Id.ToLower()}"))},
   data = ["":content_files""],
   version = ""{identity.Version}"",
 )";
-    }
-
-    private string Array(IEnumerable<string> elems)
-    {
-      if(elems?.Any() != true)
-      {
-        return string.Empty;
       }
 
-      return $"\n{string.Join(",\n", elems.Select(e => $"    \"{e}\""))}\n  ";
+      return string.Join("\n\n", Elems());
+    }
+
+    private static string Indent(string input)
+    {
+      var lines = input.Split('\n');
+      if(lines.Length > 1)
+      {
+        return $"{lines[0]}\n{string.Join('\n', lines[1..].Select(l => "" + $"  {l}"))}";
+      }
+      return lines[0];
+    }
+
+    private static string StringArray(IEnumerable<string> items) => items?.Any() != true ? "[]" : Indent($@"[
+{string.Join(",\n", items.Select(i => $@"  ""{i}"""))}
+]");
+
+    private static string Dict(IReadOnlyDictionary<string, string> items)
+    {
+      var s = new StringBuilder();
+
+      s.Append("{\n");
+
+      foreach(var (key, value) in items)
+      {
+        s.Append($@"  ""{key}"": ""{value}"",
+");
+      }
+
+      s.Append("}");
+
+      return s.ToString();
     }
   }
 }

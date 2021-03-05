@@ -40,11 +40,7 @@ namespace Afas.BazelDotnet.Nuget
       var allPackageDependencyGroups = localPackageSourceInfo.Package.Nuspec.GetDependencyGroups().ToArray();
       var frameworkReferenceGroups = localPackageSourceInfo.Package.Nuspec.GetFrameworkRefGroups().ToArray();
 
-      var refItemGroups = new List<FrameworkSpecificGroup>();
-      var runtimeItemGroups = new List<FrameworkSpecificGroup>();
-      var contentFileGroups = new List<FrameworkSpecificGroup>();
-      var analyzerItemGroups = new List<FrameworkSpecificGroup>();
-      var dependencyGroups = new List<PackageDependencyGroup>();
+      var entry = new NugetRepositoryEntry(localPackageSourceInfo);
 
       foreach(var target in _targets)
       {
@@ -61,17 +57,16 @@ namespace Afas.BazelDotnet.Nuget
           new PatternDefinition("build/{assembly}")
         });
 
-        var bestRefGroup = collection.FindBestItemGroup(criteria,
-          _conventions.Patterns.CompileRefAssemblies,
-          _conventions.Patterns.CompileLibAssemblies);
-
-        var bestRuntimeGroup = collection.FindBestItemGroup(criteria,
-          _conventions.Patterns.RuntimeAssemblies,
-          _conventions.Patterns.NativeLibraries,
-          buildAssemblies);
-
-        var bestContentFilesGroup = collection.FindBestItemGroup(criteria,
-          _conventions.Patterns.ContentFiles);
+        // shipped debug binaries
+        var netcoreappdebugAssemblies = new PatternSet(_conventions.Properties, new[]
+        {
+          new PatternDefinition("netcoreappdebug/{tfm}/{any?}"),
+          new PatternDefinition("netcoreappdebug/{assembly?}")
+        }, new[]
+        {
+          new PatternDefinition("netcoreappdebug/{tfm}/{assembly}"),
+          new PatternDefinition("netcoreappdebug/{assembly}")
+        });
 
         // The analyzer dll's are published in analyzers/ or analyzers/dotnet/cs/
         var analyzerAssemblies = new PatternSet(_conventions.Properties, new []
@@ -83,31 +78,34 @@ namespace Afas.BazelDotnet.Nuget
           new PatternDefinition("analyzers/dotnet/cs/{assembly}"),
           new PatternDefinition("analyzers/{assembly}")
         });
-        var bestAnalyzerGroup = collection.FindItemGroups(analyzerAssemblies).SingleOrDefault();
 
-        if(bestRefGroup != null)
-        {
-          refItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestRefGroup.Items.Select(i => i.Path)));
-        }
+        AddIfNotNull(entry.RefItemGroups, target.Framework,
+          collection.FindBestItemGroup(criteria,
+            _conventions.Patterns.CompileRefAssemblies,
+            _conventions.Patterns.CompileLibAssemblies)
+          ?.Items);
 
-        if(bestRuntimeGroup != null)
-        {
-          runtimeItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestRuntimeGroup.Items.Where(IsDll).Select(i => i.Path)));
+        AddIfNotNull(entry.RuntimeItemGroups, target.Framework,
+          collection.FindBestItemGroup(criteria,
+            _conventions.Patterns.RuntimeAssemblies,
+            _conventions.Patterns.NativeLibraries,
+            buildAssemblies)
+          ?.Items.Where(IsDll));
 
-          // Because Patterns.NativeLibraries matches any we sometimes contain pdb's
-          // Constructing NativeLibraries ourselves is not possible due to some internal ManagedCodeConventions
-          static bool IsDll(ContentItem item) => item.Path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
-        }
+        AddIfNotNull(entry.DebugRuntimeItemGroups, target.Framework,
+          collection.FindItemGroups(netcoreappdebugAssemblies)
+            .SingleOrDefault()
+          ?.Items.Where(IsDll));
 
-        if(bestContentFilesGroup != null)
-        {
-          contentFileGroups.Add(new FrameworkSpecificGroup(target.Framework, bestContentFilesGroup.Items.Select(i => i.Path)));
-        }
+        AddIfNotNull(entry.ContentFileGroups, target.Framework,
+          collection.FindBestItemGroup(criteria,
+            _conventions.Patterns.ContentFiles)
+          ?.Items);
 
-        if(bestAnalyzerGroup != null)
-        {
-          analyzerItemGroups.Add(new FrameworkSpecificGroup(target.Framework, bestAnalyzerGroup.Items.Select(i => i.Path)));
-        }
+        AddIfNotNull(entry.AnalyzerItemGroups, target.Framework,
+          collection.FindItemGroups(analyzerAssemblies)
+            .SingleOrDefault()
+          ?.Items);
 
         // Merge FrameworkReferences with normal PackageReferences
         var dependencies = NuGetFrameworkUtility.GetNearest(allPackageDependencyGroups, target.Framework);
@@ -115,7 +113,7 @@ namespace Afas.BazelDotnet.Nuget
 
         if(dependencies != null || frameworks != null)
         {
-          dependencyGroups.Add(new PackageDependencyGroup(
+          entry.DependencyGroups.Add(new PackageDependencyGroup(
             dependencies?.TargetFramework ?? frameworks?.TargetFramework,
             new[]
               {
@@ -126,19 +124,34 @@ namespace Afas.BazelDotnet.Nuget
         }
       }
 
-      return new NugetRepositoryEntry(localPackageSourceInfo, refItemGroups, runtimeItemGroups, contentFileGroups, analyzerItemGroups, dependencyGroups);
+      return entry;
+
+      // Because Patterns.NativeLibraries matches any we sometimes contain pdb's
+      // Constructing NativeLibraries ourselves is not possible due to some internal ManagedCodeConventions
+      static bool IsDll(ContentItem item) => item.Path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
+
+      void AddIfNotNull(ICollection<FrameworkSpecificGroup> c, NuGetFramework targetFramework, IEnumerable<ContentItem> items)
+      {
+        if(items != null)
+        {
+          c.Add(new FrameworkSpecificGroup(targetFramework, items.Select(i => i.Path)));
+        }
+      }
     }
 
     public NugetRepositoryEntry BuildFrameworkOverride(NugetRepositoryEntry entry, string frameworkOverride)
     {
       Console.WriteLine($"Overwriting {entry.LocalPackageSourceInfo.Package.Id}");
-      return new NugetRepositoryEntry(entry.LocalPackageSourceInfo, frameworkOverride == null ? Array.Empty<FrameworkSpecificGroup>() : new[]
+      var newEntry = new NugetRepositoryEntry(entry.LocalPackageSourceInfo);
+      newEntry.DependencyGroups.AddRange(entry.DependencyGroups);
+      if(frameworkOverride != null)
       {
-        new FrameworkSpecificGroup(_targets.Single().Framework, new []
+        newEntry.RefItemGroups.Add(new FrameworkSpecificGroup(_targets.Single().Framework, new []
         {
           frameworkOverride,
-        }),
-      }, Array.Empty<FrameworkSpecificGroup>(), Array.Empty<FrameworkSpecificGroup>(), Array.Empty<FrameworkSpecificGroup>(), entry.DependencyGroups);
+        }));
+      }
+      return newEntry;
     }
   }
 }

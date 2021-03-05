@@ -141,24 +141,14 @@ namespace Afas.BazelDotnet.Nuget
       Dictionary<string, LocalPackageInfo> winningPackages)
     {
       var nuGetFramework = NuGetFramework.Parse(targetFramework);
-
-      return new NugetRepositoryEntry(
-        targetPackage,
-        refItemGroups: new []
-        {
-          new FrameworkSpecificGroup(
-            nuGetFramework,
-            frameworkList.Where(pair => !winningPackages.ContainsKey(pair.Key)).Select(pair => pair.Value.file).ToArray())
-        },
-        runtimeItemGroups: Array.Empty<FrameworkSpecificGroup>(),
-        contentFileGroups: Array.Empty<FrameworkSpecificGroup>(),
-        analyzerItemGroups: Array.Empty<FrameworkSpecificGroup>(),
-        dependencyGroups: new []
-        {
-          new PackageDependencyGroup(
-            nuGetFramework,
-            winningPackages.Select(pair => new PackageDependency(pair.Key)).ToArray()),
-        });
+      var entry = new NugetRepositoryEntry(targetPackage);
+      entry.RefItemGroups.Add(new FrameworkSpecificGroup(
+        nuGetFramework,
+        frameworkList.Where(pair => !winningPackages.ContainsKey(pair.Key)).Select(pair => pair.Value.file).ToArray()));
+      entry.DependencyGroups.Add(new PackageDependencyGroup(
+        nuGetFramework,
+        winningPackages.Select(pair => new PackageDependency(pair.Key)).ToArray()));
+      return entry;
     }
 
     private async Task<LocalPackageSourceInfo> DownloadTargetPackage(string targetPackId, string targetFramework)
