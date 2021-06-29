@@ -171,6 +171,12 @@ resources.append(""{name}"")";
   testonly = True,";
       }
 
+      if(string.Equals(_csProjectFileDefinition.ReadPropertyValue("Nullable"), "enable", StringComparison.OrdinalIgnoreCase))
+      {
+        optionalProperties += @"
+  nullable = True,";
+      }
+
       var srcs = _csProjectFileDefinition.ReadPropertyValue("BazelSrcs");
       var srcsValue = string.IsNullOrEmpty(srcs) ? string.Join(",\n", SrcPatterns) : "srcs";
 
