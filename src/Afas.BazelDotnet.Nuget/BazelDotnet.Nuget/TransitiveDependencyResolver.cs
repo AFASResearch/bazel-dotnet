@@ -88,14 +88,15 @@ namespace Afas.BazelDotnet.Nuget
       project.Name = _rootProjectName;
       project.Version = NuGetVersion.Parse(_rootProjectVersion);
 
-      project.Dependencies = _packages.Select(package => new LibraryDependency(
-        package,
-        LibraryDependencyType.Build,
-        includeType: LibraryIncludeFlags.None,
-        suppressParent: LibraryIncludeFlags.All,
-        noWarn: new List<NuGetLogCode>(),
-        autoReferenced: true,
-        generatePathProperty: false))
+      project.Dependencies = _packages.Select(package => new LibraryDependency
+        {
+          LibraryRange = package,
+          Type = LibraryDependencyType.Build,
+          IncludeType = LibraryIncludeFlags.None,
+          SuppressParent = LibraryIncludeFlags.All,
+          AutoReferenced = true,
+          GeneratePathProperty = false,
+        })
         .ToList();
 
       // In case we get re-used we clear the previous value first
@@ -115,7 +116,7 @@ namespace Afas.BazelDotnet.Nuget
       // nuget.org etc.
       var globalPackagesFolder = SettingsUtility.GetGlobalPackagesFolder(settings);
       var localRepository = Repository.Factory.GetCoreV3(globalPackagesFolder, FeedType.FileSystemV3);
-      var sourceRepositoryProvider = new SourceRepositoryProvider(settings, Repository.Provider.GetCoreV3());
+      var sourceRepositoryProvider = new SourceRepositoryProvider(new PackageSourceProvider(settings), Repository.Provider.GetCoreV3());
 
       var context = new RemoteWalkContext(cache, logger);
 

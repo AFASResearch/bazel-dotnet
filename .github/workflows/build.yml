@@ -11,7 +11,7 @@ jobs:
       - name: Setup .NET Core
         uses: actions/setup-dotnet@v1
         with:
-          dotnet-version: "3.1.100" # SDK Version to use.
+          dotnet-version: "5.0.100" # SDK Version to use.
 
       - name: Version tag
         id: version
@@ -23,7 +23,7 @@ jobs:
         run: dotnet publish BazelDotnet.sln --configuration Release
 
       - name: Zip publish
-        run: 7z a ${{ env.TAG_VERSION }}.zip src/Afas.BazelDotnet/bin/Release/netcoreapp3.1/publish/.
+        run: 7z a ${{ env.TAG_VERSION }}.zip src/Afas.BazelDotnet/bin/Release/net5.0/publish/.
 
       - name: Upload zip
         uses: actions/upload-artifact@v1
