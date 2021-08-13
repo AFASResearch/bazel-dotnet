@@ -150,7 +150,7 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
 
 exports_files([""contentfiles.txt""])
 
-{CreateTarget(entry, isSingle: true)}";
+{CreateTarget(entry)}";
 
       var filePath = $"{id}/BUILD";
       new FileInfo(filePath).Directory.Create();
@@ -166,7 +166,7 @@ exports_files([""contentfiles.txt""])
       var content = $@"package(default_visibility = [""//visibility:public""])
 load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
 
-{string.Join("\n\n", entryGroup.Select(e => CreateTarget(e, isSingle: false)))}";
+{string.Join("\n\n", entryGroup.Select(e => CreateTarget(e)))}";
 
       var filePath = $"{id}/BUILD";
       new FileInfo(filePath).Directory.Create();
@@ -189,14 +189,14 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
       }
     }
 
-    private string CreateTarget(NugetRepositoryEntry package, bool isSingle)
+    private string CreateTarget(NugetRepositoryEntry package)
     {
       var identity = package.LocalPackageSourceInfo.Package;
-      var folder = isSingle ? "current" : identity.Version.ToString();
+      var folder = identity.Version.ToString();
 
       IEnumerable<string> Elems()
       {
-        yield return $@"exports_files(glob([""{folder}/**"", ""{identity.Version}/**""]))";
+        yield return $@"exports_files(glob([""current/**"", ""{identity.Version}/**""]))";
 
         yield return $@"filegroup(
   name = ""content_files"",
