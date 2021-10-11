@@ -79,9 +79,19 @@ namespace Afas.BazelDotnet.Nuget
           new PatternDefinition("analyzers/{assembly}")
         });
 
+        // "2.0.0/build/netstandard2.0/ref/netstandard.dll"
+        var netstandardRefAssemblies = new PatternSet(_conventions.Properties, new []
+        {
+          new PatternDefinition("build/{tfm}/ref/{any?}"),
+        }, new[]
+        {
+          new PatternDefinition("build/{tfm}/ref/{assembly}"),
+        });
+
         AddIfNotNull(entry.RefItemGroups, target.Framework,
           collection.FindBestItemGroup(criteria,
             _conventions.Patterns.CompileRefAssemblies,
+            netstandardRefAssemblies,
             _conventions.Patterns.CompileLibAssemblies)
           ?.Items);
 

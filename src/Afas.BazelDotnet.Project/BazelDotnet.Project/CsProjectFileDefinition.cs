@@ -13,10 +13,7 @@ namespace Afas.BazelDotnet.Project
     public CsProjectFileDefinition(string projectFilePath, string slnBasePath)
     {
       RelativeFilePath = Path.GetRelativePath(slnBasePath, projectFilePath);
-      PackageReferences = new List<string>
-      {
-        "Microsoft.NETCore.App.Ref",
-      };
+      PackageReferences = new List<string>();
       ProjectReference = new List<string>();
       BazelData = new List<string>();
       EmbeddedResources = new List<EmbeddedResourceDefinition>();
@@ -48,6 +45,13 @@ namespace Afas.BazelDotnet.Project
       var projectFileDir = Path.GetDirectoryName(projectFilePath);
 
       Type = GetProjectType(_document);
+
+      var targetFramework = _document.Descendants("TargetFramework").FirstOrDefault()?.Value;
+      var targetFrameworkRef = string.Equals("netstandard2.0", targetFramework, StringComparison.OrdinalIgnoreCase)
+        ? "Netstandard.Library"
+        : "Microsoft.NETCore.App.Ref";
+
+      PackageReferences.Add(targetFrameworkRef);
 
       foreach(var reference in _document.Descendants("PackageReference"))
       {

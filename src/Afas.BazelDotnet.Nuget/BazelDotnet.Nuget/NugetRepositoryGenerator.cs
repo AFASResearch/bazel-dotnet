@@ -9,6 +9,7 @@ using NuGet.Common;
 using NuGet.Configuration;
 using NuGet.Credentials;
 using NuGet.Frameworks;
+using NuGet.Packaging.Core;
 using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
 using NuGet.Protocol.Plugins;
@@ -209,7 +210,7 @@ config_setting(
   libs = {libs},
   refs = {StringArray(package.RefItemGroups.SingleOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{folder}/{v}"))},
   analyzers = {StringArray(package.AnalyzerItemGroups.SingleOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{folder}/{v}"))},
-  deps = {StringArray(package.DependencyGroups.SingleOrDefault()?.Packages.Select(p => $"//{p.Id.ToLower()}"))},
+  deps = {StringArray(package.DependencyGroups.SingleOrDefault()?.Packages.Where(ShouldIncludeDep).Select(p => $"//{p.Id.ToLower()}"))},
   data = ["":content_files""],
   version = ""{identity.Version}"",
 )";
@@ -217,6 +218,11 @@ config_setting(
 
       return string.Join("\n\n", Elems());
     }
+
+    private bool ShouldIncludeDep(PackageDependency package) =>
+      // Some libraries depend on netstandard. It will not include anything of use
+      // Should only be referenced explicitly as targetframework
+      !string.Equals(package.Id, "netstandard.library", StringComparison.OrdinalIgnoreCase);
 
     private static string Indent(string input)
     {
