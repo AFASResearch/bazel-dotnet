@@ -31,18 +31,12 @@ namespace Afas.BazelDotnet.Nuget
     {
       ILogger logger = new ConsoleLogger();
       var settings = Settings.LoadSpecificSettings(Path.GetDirectoryName(_nugetConfig), Path.GetFileName(_nugetConfig));
+      DefaultCredentialServiceUtility.SetupDefaultCredentialService(logger, nonInteractive: true);
 
       // ~/.nuget/packages
 
       using(var cache = new SourceCacheContext())
       {
-        PreviewFeatureSettings.DefaultCredentialsAfterCredentialProviders = true;
-
-        HttpHandlerResourceV3.CredentialService = new Lazy<ICredentialService>(() => new CredentialService(
-          new AsyncLazy<IEnumerable<ICredentialProvider>>(() => GetCredentialProvidersAsync(settings)),
-          nonInteractive: true,
-          handlesDefaultCredentials: PreviewFeatureSettings.DefaultCredentialsAfterCredentialProviders));
-
         var dependencyGraphResolver = new TransitiveDependencyResolver(settings, logger, cache);
 
         foreach((string package, string version) v in packageReferences)
@@ -69,30 +63,6 @@ namespace Afas.BazelDotnet.Nuget
 
         return frameworkEntries.Concat(overridenEntries).ToArray();
       }
-    }
-
-    private async Task<IEnumerable<ICredentialProvider>> GetCredentialProvidersAsync(ISettings settings)
-    {
-      var providers = new List<ICredentialProvider>();
-
-      var securePluginProviders = await (new SecurePluginCredentialProviderBuilder(PluginManager.Instance, canShowDialog: false, logger: NullLogger.Instance)).BuildAllAsync();
-      providers.AddRange(securePluginProviders);
-
-      IList<ICredentialProvider> pluginProviders = new List<ICredentialProvider>();
-      var extensionLocator = new ExtensionLocator();
-      pluginProviders = new PluginCredentialProviderBuilder(extensionLocator, settings, NullLogger.Instance)
-        .BuildAll("Detailed") //Verbosity.Warning.ToString())
-        .ToList();
-      providers.AddRange(pluginProviders);
-      if(pluginProviders.Any() || securePluginProviders.Any())
-      {
-        if(PreviewFeatureSettings.DefaultCredentialsAfterCredentialProviders)
-        {
-          providers.Add(new DefaultNetworkCredentialsCredentialProvider());
-        }
-      }
-
-      return providers;
     }
 
     public async Task WriteRepository(string targetFramework, string targetRuntime, IEnumerable<(string package, string version)> packageReferences)
