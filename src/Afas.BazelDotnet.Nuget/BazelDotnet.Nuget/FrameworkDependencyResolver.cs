@@ -43,10 +43,11 @@ namespace Afas.BazelDotnet.Nuget
     public async Task<(IReadOnlyCollection<NugetRepositoryEntry> entries, IReadOnlyDictionary<string, string> overrides)> ResolveFrameworkPackages(
       IReadOnlyCollection<NugetRepositoryEntry> localPackages, string targetFramework)
     {
-      var packagesLookup = localPackages.ToDictionary(l => l.LocalPackageSourceInfo.Package.Id, l => l, StringComparer.OrdinalIgnoreCase);
+      var existingPackagesLookup = localPackages.ToDictionary(l => l.LocalPackageSourceInfo.Package.Id, l => l, StringComparer.OrdinalIgnoreCase);
       var entries = new List<NugetRepositoryEntry>();
       var overrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+      // Resolve distinct FrameworkReferences from each nuget package
       var localTargetPackages = await Task.WhenAll(
         GetTargetPackages(localPackages)
           .Select(p => DownloadTargetPackage(p, targetFramework))
@@ -57,60 +58,77 @@ namespace Afas.BazelDotnet.Nuget
         var frameworkList = GetFrameworkList(targetPackage, targetFramework);
         var packageOverrides = GetPackageOverrides(targetPackage);
 
-        var potentialOverrides = packageOverrides.Keys.
-          Intersect(packagesLookup.Keys, StringComparer.OrdinalIgnoreCase);
-        var frameworkConflicts = frameworkList.Keys
-          .Intersect(packagesLookup.Keys, StringComparer.OrdinalIgnoreCase)
-          .Except(packageOverrides.Keys, StringComparer.OrdinalIgnoreCase);
-
-        var considerAssemblyVersions = new List<string>();
-        // Keep track of a list of packages that have higher versions than the targetPackage provided ones
-        var winningPackages = new Dictionary<string, LocalPackageInfo>();
-
-        foreach(var o in potentialOverrides)
+        // Resolve overrides as specified in the TargetPackage (FrameworkReference) data/PackageOverrides.txt
+        foreach(var (id, packageOverride) in packageOverrides)
         {
-          var targetIsEmpty = packagesLookup[o].RefItemGroups.SingleOrDefault()?.Items.Any() != true;
-          if(targetIsEmpty || packageOverrides[o] >= packagesLookup[o].Version)
+          // The override does not apply since there is nothing to override
+          if(!existingPackagesLookup.TryGetValue(id, out var existingPackage))
           {
-            overrides.Add(o, frameworkList.TryGetValue(o, out var frameworkItem)
-                ? $"//{targetPackage.Package.Id.ToLower()}:current/{frameworkItem.file}"
-                : null);
+            continue;
           }
-          else if(frameworkList.ContainsKey(o))
+
+          var existingPackageIsEmpty = existingPackage.RefItemGroups.SingleOrDefault()?.Items.Any() != true;
+          if(existingPackageIsEmpty || packageOverride >= existingPackage.Version)
           {
-            considerAssemblyVersions.Add(o);
+            if(frameworkList.TryGetValue(id, out var frameworkItem))
+            {
+              // override to a binary from this TargetPackage (data/FrameworkList.xml)
+              overrides.Add(id, $"//{targetPackage.Package.Id.ToLower()}:current/{frameworkItem.file}");
+            }
+            else
+            {
+              // override to null, resulting in dropping the binary reference
+              overrides.Add(id, null);
+            }
           }
         }
 
-        foreach(var c in frameworkConflicts.Concat(considerAssemblyVersions))
+        // Keep track of a list of packages that have higher versions than the TargetPackage provided ones
+        // These binaries are dropped from the TargetPackage and redirected (using deps) to the nuget package
+        var upgrades = new HashSet<string>();
+
+        // Resolve conflicts using the assembly version
+        foreach(var (id, (assemblyName, assemblyVersion)) in frameworkList)
         {
-          if(OverridesAssemblyVersion(c, frameworkList[c].version))
+          // No conflict
+          if(!existingPackagesLookup.TryGetValue(id, out var existingPackage))
           {
-            overrides.Add(c, $"//{targetPackage.Package.Id.ToLower()}:current/{frameworkList[c].file}");
+            continue;
+          }
+
+          // Handled by the overrides, no conflict
+          if(overrides.ContainsKey(id))
+          {
+            continue;
+          }
+
+          if(OverridesAssemblyVersion(existingPackage, assemblyVersion))
+          {
+            overrides.Add(id, $"//{targetPackage.Package.Id.ToLower()}:current/{assemblyName}");
           }
           else
           {
-            winningPackages.Add(c, packagesLookup[c].LocalPackageSourceInfo.Package);
+            upgrades.Add(id);
           }
         }
 
         entries.Add(
-          BuildEntry(targetPackage, targetFramework, frameworkList, winningPackages)
+          BuildEntry(targetPackage, targetFramework, frameworkList, upgrades)
         );
       }
 
       return (entries, overrides);
 
-      bool OverridesAssemblyVersion(string packageId, Version frameworkListVersion)
+      bool OverridesAssemblyVersion(NugetRepositoryEntry package, Version frameworkListVersion)
       {
-        var refItems = packagesLookup[packageId].RefItemGroups.Single();
+        var refItems = package.RefItemGroups.Single();
         if(!refItems.Items.Any())
         {
           return true;
         }
         var refAssembly = refItems.Items.Single();
 
-        var conflictingFile = Path.Combine($"{packagesLookup[packageId].LocalPackageSourceInfo.Package.ExpandedPath}/{refAssembly}");
+        var conflictingFile = $"{package.LocalPackageSourceInfo.Package.ExpandedPath}/{refAssembly}";
         var conflictingVersion = FileUtilities.GetAssemblyVersion(conflictingFile);
 
         return frameworkListVersion >= conflictingVersion;
@@ -138,16 +156,16 @@ namespace Afas.BazelDotnet.Nuget
       LocalPackageSourceInfo targetPackage,
       string targetFramework,
       Dictionary<string, (string file, Version version)> frameworkList,
-      Dictionary<string, LocalPackageInfo> winningPackages)
+      HashSet<string> upgrades)
     {
       var nuGetFramework = NuGetFramework.Parse(targetFramework);
       var entry = new NugetRepositoryEntry(targetPackage);
       entry.RefItemGroups.Add(new FrameworkSpecificGroup(
         nuGetFramework,
-        frameworkList.Where(pair => !winningPackages.ContainsKey(pair.Key)).Select(pair => pair.Value.file).ToArray()));
+        frameworkList.Where(pair => !upgrades.Contains(pair.Key)).Select(pair => pair.Value.file).ToArray()));
       entry.DependencyGroups.Add(new PackageDependencyGroup(
         nuGetFramework,
-        winningPackages.Select(pair => new PackageDependency(pair.Key)).ToArray()));
+        upgrades.Select(id => new PackageDependency(id)).ToArray()));
       return entry;
     }
 
