@@ -156,7 +156,7 @@ namespace Afas.BazelDotnet.Nuget
       newEntry.DependencyGroups.AddRange(entry.DependencyGroups);
       if(frameworkOverride != null)
       {
-        newEntry.RefItemGroups.Add(new FrameworkSpecificGroup(_targets.Single().Framework, new []
+        newEntry.RefItemGroups.Add(new FrameworkSpecificGroup(_targets.First().Framework, new []
         {
           frameworkOverride,
         }));

@@ -67,7 +67,7 @@ namespace Afas.BazelDotnet.Nuget
             continue;
           }
 
-          var existingPackageIsEmpty = existingPackage.RefItemGroups.SingleOrDefault()?.Items.Any() != true;
+          var existingPackageIsEmpty = existingPackage.RefItemGroups.FirstOrDefault()?.Items.Any() != true;
           if(existingPackageIsEmpty || packageOverride >= existingPackage.Version)
           {
             if(frameworkList.TryGetValue(id, out var frameworkItem))
@@ -121,7 +121,7 @@ namespace Afas.BazelDotnet.Nuget
 
       bool OverridesAssemblyVersion(NugetRepositoryEntry package, Version frameworkListVersion)
       {
-        var refItems = package.RefItemGroups.Single();
+        var refItems = package.RefItemGroups.First();
         if(!refItems.Items.Any())
         {
           return true;

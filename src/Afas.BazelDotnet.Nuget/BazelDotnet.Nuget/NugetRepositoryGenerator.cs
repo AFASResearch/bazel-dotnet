@@ -9,6 +9,7 @@ using NuGet.Common;
 using NuGet.Configuration;
 using NuGet.Credentials;
 using NuGet.Frameworks;
+using NuGet.Packaging;
 using NuGet.Packaging.Core;
 using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
@@ -18,8 +19,46 @@ namespace Afas.BazelDotnet.Nuget
 {
   public class NugetRepositoryGenerator
   {
+    private class TargetFrameworkProcessor
+    {
+      public string CreateConfigurationTargets(IReadOnlyList<string> targetFrameworks) => $@"
+load(""@bazel_skylib//rules:common_settings.bzl"", ""string_flag"")
+
+string_flag(
+    name = ""framework"",
+    values = {Indent(StringArray(targetFrameworks))},
+    build_setting_default = ""{targetFrameworks.First()}""
+)
+
+{string.Join("\n", targetFrameworks
+  .Select(f => $@"config_setting(
+  name = ""frameworks-{f}"",
+  flag_values = {{
+      "":framework"": ""{f}""
+  }}
+)
+"))}";
+
+      public string CreateSelectStatementWhenApplicable(IReadOnlyList<FrameworkSpecificGroup> groups, Func<string, string> format)
+      {
+        var arrays = groups.Select(g => StringArray(g.Items.Select(format))).ToArray();
+        return arrays.Distinct().Count() switch
+        {
+          0 => "[]",
+          1 => arrays[0],
+          _ => Select(Indent(Dict(groups.Select(g => $"//:frameworks-{g.TargetFramework.GetShortFolderName()}")
+            .Zip(arrays)
+            .Skip(1).Append(("//conditions:default", arrays[0]))
+            .ToDictionary(t => t.Item1, t => t.Item2))))
+        };
+      }
+
+      private static string Select(string input) => $@"select({input})";
+    }
+
     private readonly string _nugetConfig;
     private readonly ILookup<string, (string target, string configSetting)> _imports;
+    private readonly TargetFrameworkProcessor _targetFrameworkProcessor = new();
 
     public NugetRepositoryGenerator(string nugetConfig, ILookup<string, (string target, string configSetting)> imports)
     {
@@ -27,7 +66,7 @@ namespace Afas.BazelDotnet.Nuget
       _imports = imports;
     }
 
-    private async Task<NugetRepositoryEntry[]> ResolveLocalPackages(string targetFramework, string targetRuntime,
+    private async Task<NugetRepositoryEntry[]> ResolveLocalPackages(IReadOnlyList<string> targetFrameworks, string targetRuntime,
       IEnumerable<(string package, string version)> packageReferences)
     {
       ILogger logger = new ConsoleLogger();
@@ -44,16 +83,22 @@ namespace Afas.BazelDotnet.Nuget
         dependencyGraphResolver.AddPackageReference(package, version);
       }
 
-      var dependencyGraph = await dependencyGraphResolver.ResolveGraph(targetFramework, targetRuntime).ConfigureAwait(false);
+      // TODO ResolveGraph on multiple tfms
+        var dependencyGraph = await dependencyGraphResolver.ResolveGraph(targetFrameworks.First(), targetRuntime).ConfigureAwait(false);
       var localPackages = await dependencyGraphResolver.DownloadPackages(dependencyGraph).ConfigureAwait(false);
 
-      var entryBuilder = new NugetRepositoryEntryBuilder(dependencyGraph.Conventions)
-          .WithTarget(new FrameworkRuntimePair(NuGetFramework.Parse(targetFramework), targetRuntime));
+      var entryBuilder = new NugetRepositoryEntryBuilder(dependencyGraph.Conventions);
+
+        foreach(var targetFramework in targetFrameworks)
+        {
+          entryBuilder.WithTarget(new FrameworkRuntimePair(NuGetFramework.Parse(targetFramework), targetRuntime));
+        }
 
       var entries = localPackages.Select(entryBuilder.ResolveGroups).ToArray();
 
         var (frameworkEntries, frameworkOverrides) = await new FrameworkDependencyResolver(dependencyGraphResolver)
-          .ResolveFrameworkPackages(entries, targetFramework)
+          // TODO ResolveFrameworkPackages on multiple tfms
+          .ResolveFrameworkPackages(entries, targetFrameworks.First())
         .ConfigureAwait(false);
 
       var overridenEntries = entries.Select(p =>
@@ -64,9 +109,9 @@ namespace Afas.BazelDotnet.Nuget
       return frameworkEntries.Concat(overridenEntries).ToArray();
     }
 
-    public async Task WriteRepository(string targetFramework, string targetRuntime, IEnumerable<(string package, string version)> packageReferences)
+    public async Task WriteRepository(IReadOnlyList<string> targetFrameworks, string targetRuntime, IEnumerable<(string package, string version)> packageReferences)
     {
-      var packages = await ResolveLocalPackages(targetFramework, targetRuntime, packageReferences).ConfigureAwait(false);
+      var packages = await ResolveLocalPackages(targetFrameworks, targetRuntime, packageReferences).ConfigureAwait(false);
 
       var symlinks = new HashSet<(string link, string target)>();
 
@@ -95,6 +140,8 @@ namespace Afas.BazelDotnet.Nuget
           }
         }
       }
+
+      File.WriteAllText("BUILD", _targetFrameworkProcessor.CreateConfigurationTargets(targetFrameworks));
 
       File.WriteAllText("symlinks_manifest", string.Join("\n", symlinks
         .Select(sl => $@"{sl.link} {sl.target}")));
@@ -144,7 +191,7 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
 
     private IEnumerable<string> GetContentFiles(NugetRepositoryEntry package)
     {
-      var group = package.ContentFileGroups.SingleOrDefault();
+      var group = package.ContentFileGroups.FirstOrDefault();
       if(group?.Items.Any() == true)
       {
         // Symlink optimization to link the entire group folder e.g. contentFiles/any/netcoreapp3.1
@@ -176,9 +223,9 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
 
         if(_imports.Contains(name))
         {
-          var selects = _imports[name].ToDictionary(i => i.configSetting, i => i.target);
+          var selects = _imports[name].ToDictionary(i => i.configSetting, i => Quote(i.target));
           name += "__nuget";
-          selects["//conditions:default"] = name;
+          selects["//conditions:default"] = Quote(name);
 
           yield return $@"alias(
   name = ""{identity.Id.ToLower()}"",
@@ -187,7 +234,7 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
         }
 
         bool hasDebugDlls = package.DebugRuntimeItemGroups.Count != 0;
-        var libs = StringArray(package.RuntimeItemGroups.SingleOrDefault()?.Items.Select(v => $"{folder}/{v}"));
+        var libs = _targetFrameworkProcessor.CreateSelectStatementWhenApplicable(package.RuntimeItemGroups, v => $"{folder}/{v}");
 
         if(hasDebugDlls)
         {
@@ -199,18 +246,19 @@ config_setting(
   },
 )";
           libs = Indent($@"select({{
-  "":compilation_mode_dbg"": {StringArray(package.DebugRuntimeItemGroups.Single().Items.Select(v => $"{folder}/{v}"))},
+  "":compilation_mode_dbg"": {StringArray(package.DebugRuntimeItemGroups.First().Items.Select(v => $"{folder}/{v}"))},
   ""//conditions:default"": {libs},
 }})");
         }
 
+        var refs = _targetFrameworkProcessor.CreateSelectStatementWhenApplicable(package.RefItemGroups, v => v.StartsWith("//") ? v : $"{folder}/{v}");
 
         yield return $@"core_import_library(
   name = ""{name}"",
   libs = {libs},
-  refs = {StringArray(package.RefItemGroups.SingleOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{folder}/{v}"))},
-  analyzers = {StringArray(package.AnalyzerItemGroups.SingleOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{folder}/{v}"))},
-  deps = {StringArray(package.DependencyGroups.SingleOrDefault()?.Packages.Where(ShouldIncludeDep).Select(p => $"//{p.Id.ToLower()}"))},
+  refs = {refs},
+  analyzers = {StringArray(package.AnalyzerItemGroups.FirstOrDefault()?.Items.Select(v => v.StartsWith("//") ? v : $"{folder}/{v}"))},
+  deps = {StringArray(package.DependencyGroups.FirstOrDefault()?.Packages.Where(ShouldIncludeDep).Select(p => $"//{p.Id.ToLower()}"))},
   data = ["":content_files""],
   version = ""{identity.Version}"",
 )";
@@ -238,6 +286,8 @@ config_setting(
 {string.Join(",\n", items.Select(i => $@"  ""{i}"""))}
 ]");
 
+    private static string Quote(string input) => $@"""{input}""";
+
     private static string Dict(IReadOnlyDictionary<string, string> items)
     {
       var s = new StringBuilder();
@@ -246,7 +296,7 @@ config_setting(
 
       foreach(var (key, value) in items)
       {
-        s.Append($@"  ""{key}"": ""{value}"",
+        s.Append($@"  ""{key}"": {value},
 ");
       }
 
