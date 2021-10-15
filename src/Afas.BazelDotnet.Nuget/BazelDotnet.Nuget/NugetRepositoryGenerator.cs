@@ -34,35 +34,33 @@ namespace Afas.BazelDotnet.Nuget
       DefaultCredentialServiceUtility.SetupDefaultCredentialService(logger, nonInteractive: true);
 
       // ~/.nuget/packages
+      using var cache = new SourceCacheContext();
 
-      using(var cache = new SourceCacheContext())
+      var dependencyGraphResolver = new TransitiveDependencyResolver(settings, logger, cache);
+
+      foreach(var (package, version) in packageReferences)
       {
-        var dependencyGraphResolver = new TransitiveDependencyResolver(settings, logger, cache);
+        dependencyGraphResolver.AddPackageReference(package, version);
+      }
 
-        foreach((string package, string version) v in packageReferences)
-        {
-          dependencyGraphResolver.AddPackageReference(v.package, v.version);
-        }
+      var dependencyGraph = await dependencyGraphResolver.ResolveGraph(targetFramework, targetRuntime).ConfigureAwait(false);
+      var localPackages = await dependencyGraphResolver.DownloadPackages(dependencyGraph).ConfigureAwait(false);
 
-        var dependencyGraph = await dependencyGraphResolver.ResolveGraph(targetFramework, targetRuntime).ConfigureAwait(false);
-        var localPackages = await dependencyGraphResolver.DownloadPackages(dependencyGraph).ConfigureAwait(false);
-
-        var entryBuilder = new NugetRepositoryEntryBuilder(dependencyGraph.Conventions)
+      var entryBuilder = new NugetRepositoryEntryBuilder(dependencyGraph.Conventions)
           .WithTarget(new FrameworkRuntimePair(NuGetFramework.Parse(targetFramework), targetRuntime));
 
-        var entries = localPackages.Select(entryBuilder.ResolveGroups).ToArray();
+      var entries = localPackages.Select(entryBuilder.ResolveGroups).ToArray();
 
         var (frameworkEntries, frameworkOverrides) = await new FrameworkDependencyResolver(dependencyGraphResolver)
           .ResolveFrameworkPackages(entries, targetFramework)
-          .ConfigureAwait(false);
+        .ConfigureAwait(false);
 
-        var overridenEntries = entries.Select(p =>
-          frameworkOverrides.TryGetValue(p.LocalPackageSourceInfo.Package.Id, out var frameworkOverride)
-            ? entryBuilder.BuildFrameworkOverride(p, frameworkOverride)
-            : p);
+      var overridenEntries = entries.Select(p =>
+        frameworkOverrides.TryGetValue(p.LocalPackageSourceInfo.Package.Id, out var frameworkOverride)
+          ? entryBuilder.BuildFrameworkOverride(p, frameworkOverride)
+          : p);
 
-        return frameworkEntries.Concat(overridenEntries).ToArray();
-      }
+      return frameworkEntries.Concat(overridenEntries).ToArray();
     }
 
     public async Task WriteRepository(string targetFramework, string targetRuntime, IEnumerable<(string package, string version)> packageReferences)
