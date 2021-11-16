@@ -189,6 +189,7 @@ namespace Afas.BazelDotnet.Nuget
 
       return XDocument.Load(Path.Combine(targetPackage.Package.ExpandedPath, frameworkListPath))
         .Descendants("File")
+        .Where(f => !string.Equals(f.Attribute("Type").Value, "Analyzer", StringComparison.OrdinalIgnoreCase))
         .ToDictionary(
           f => f.Attribute("AssemblyName").Value,
           f => (file: FixPath(f.Attribute("Path").Value), version: Version.Parse(f.Attribute("AssemblyVersion").Value)),
