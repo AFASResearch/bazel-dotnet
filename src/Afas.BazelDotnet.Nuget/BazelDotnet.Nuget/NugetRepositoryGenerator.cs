@@ -5,15 +5,21 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using NuGet.Client;
+using NuGet.Commands;
 using NuGet.Common;
 using NuGet.Configuration;
 using NuGet.Credentials;
 using NuGet.Frameworks;
+using NuGet.LibraryModel;
 using NuGet.Packaging;
 using NuGet.Packaging.Core;
+using NuGet.ProjectModel;
 using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
 using NuGet.Protocol.Plugins;
+using NuGet.RuntimeModel;
+using NuGet.Versioning;
 
 namespace Afas.BazelDotnet.Nuget
 {
@@ -66,37 +72,53 @@ string_flag(
       _imports = imports;
     }
 
+    private async Task<PackagesLockFile> TryReadLockFile(string nugetLockFilePath, ILogger logger)
+    {
+      if(string.IsNullOrEmpty(nugetLockFilePath))
+      {
+        return null;
+      }
+
+      if(!File.Exists(nugetLockFilePath))
+      {
+        throw new Exception("Nuget Lock File was specified but not found.");
+      }
+
+      return PackagesLockFileFormat.Parse(await File.ReadAllTextAsync(nugetLockFilePath), logger, nugetLockFilePath);
+    }
+
     private async Task<NugetRepositoryEntry[]> ResolveLocalPackages(IReadOnlyList<string> targetFrameworks, string targetRuntime,
-      IEnumerable<(string package, string version)> packageReferences)
+      IEnumerable<(string package, string version)> packageReferences, string nugetLockFilePath)
     {
       ILogger logger = new ConsoleLogger();
+
+      var rootProject = new RootProject(
+        targetFrameworks.Select(tfm => new FrameworkRuntimePair(NuGetFramework.Parse(tfm), targetRuntime)).ToArray(),
+        packageReferences.Select(r => new LibraryRange(r.package, VersionRange.Parse(r.version), LibraryDependencyTarget.Package)).ToArray(),
+        await TryReadLockFile(nugetLockFilePath, logger));
+
       var settings = Settings.LoadSpecificSettings(Path.GetDirectoryName(_nugetConfig), Path.GetFileName(_nugetConfig));
       DefaultCredentialServiceUtility.SetupDefaultCredentialService(logger, nonInteractive: true);
 
       // ~/.nuget/packages
       using var cache = new SourceCacheContext();
 
-      var dependencyGraphResolver = new TransitiveDependencyResolver(settings, logger, cache);
+      var dependencyGraphResolver = new TransitiveDependencyResolver(settings, logger, cache, rootProject);
 
-      foreach(var (package, version) in packageReferences)
+      var dependencyGraphs = await dependencyGraphResolver.ResolveGraphs();
+
+      if(!string.IsNullOrEmpty(nugetLockFilePath) && !rootProject.IsLockFileValid)
       {
-        dependencyGraphResolver.AddPackageReference(package, version);
+        await File.WriteAllTextAsync(nugetLockFilePath, dependencyGraphResolver.RenderLockFile(dependencyGraphs));
       }
 
-      // TODO ResolveGraph on multiple tfms
-        var dependencyGraph = await dependencyGraphResolver.ResolveGraph(targetFrameworks.First(), targetRuntime).ConfigureAwait(false);
-      var localPackages = await dependencyGraphResolver.DownloadPackages(dependencyGraph).ConfigureAwait(false);
+      var runtimeGraph = dependencyGraphs.Select(g => g.RuntimeGraph).Aggregate(RuntimeGraph.Merge);
+      var entryBuilder = new NugetRepositoryEntryBuilder(new ManagedCodeConventions(runtimeGraph), rootProject.Targets);
 
-      var entryBuilder = new NugetRepositoryEntryBuilder(dependencyGraph.Conventions);
-
-        foreach(var targetFramework in targetFrameworks)
-        {
-          entryBuilder.WithTarget(new FrameworkRuntimePair(NuGetFramework.Parse(targetFramework), targetRuntime));
-        }
-
+      var localPackages = await dependencyGraphResolver.DownloadPackages(dependencyGraphs).ConfigureAwait(false);
       var entries = localPackages.Select(entryBuilder.ResolveGroups).ToArray();
 
-        var (frameworkEntries, frameworkOverrides) = await new FrameworkDependencyResolver(dependencyGraphResolver)
+      var (frameworkEntries, frameworkOverrides) = await new FrameworkDependencyResolver(dependencyGraphResolver)
           // TODO ResolveFrameworkPackages on multiple tfms
           .ResolveFrameworkPackages(entries, targetFrameworks.First())
         .ConfigureAwait(false);
@@ -109,9 +131,9 @@ string_flag(
       return frameworkEntries.Concat(overridenEntries).ToArray();
     }
 
-    public async Task WriteRepository(IReadOnlyList<string> targetFrameworks, string targetRuntime, IEnumerable<(string package, string version)> packageReferences)
+    public async Task WriteRepository(IReadOnlyList<string> targetFrameworks, string targetRuntime, IEnumerable<(string package, string version)> packageReferences, string nugetLockFilePath)
     {
-      var packages = await ResolveLocalPackages(targetFrameworks, targetRuntime, packageReferences).ConfigureAwait(false);
+      var packages = await ResolveLocalPackages(targetFrameworks, targetRuntime, packageReferences, nugetLockFilePath).ConfigureAwait(false);
 
       var symlinks = new HashSet<(string link, string target)>();
 

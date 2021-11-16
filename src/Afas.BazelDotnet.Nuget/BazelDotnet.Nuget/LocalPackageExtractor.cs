@@ -19,9 +19,9 @@ namespace Afas.BazelDotnet.Nuget
     private readonly SourceCacheContext _cache;
     private readonly PackageExtractionContext _context;
 
-    public LocalPackageExtractor(ISettings settings, ILogger logger, SourceCacheContext cache)
+    public LocalPackageExtractor(ISettings settings, NuGetv3LocalRepository v3LocalRepository, ILogger logger, SourceCacheContext cache)
     {
-      _v3LocalRepository = new NuGetv3LocalRepository(SettingsUtility.GetGlobalPackagesFolder(settings), new LocalPackageFileCache(), false);
+      _v3LocalRepository = v3LocalRepository;
       _cache = cache;
       _context = new PackageExtractionContext(PackageSaveMode.Defaultv3, XmlDocFileSaveMode.Skip, ClientPolicyContext.GetClientPolicy(settings, logger), logger);
     }
@@ -31,11 +31,11 @@ namespace Afas.BazelDotnet.Nuget
     {
       if(!_v3LocalRepository.Exists(packageIdentity.Id, packageIdentity.Version))
       {
-        var packageDependency = await provider.GetPackageDownloaderAsync(packageIdentity, _cache, _context.Logger, CancellationToken.None);
+      var downloader = await provider.GetPackageDownloaderAsync(packageIdentity, _cache, _context.Logger, CancellationToken.None);
 
         var installed = await PackageExtractor.InstallFromSourceAsync(
           packageIdentity,
-          packageDependency,
+          downloader,
           _v3LocalRepository.PathResolver,
           _context,
           CancellationToken.None,
