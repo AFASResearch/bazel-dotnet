@@ -181,12 +181,25 @@ exit /b %errorlevel%
       }
     }
 
+    private static readonly HashSet<string> _exportedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+      ".exe",
+      ".ruleset",
+      ".json",
+      // only really used for internal redirects. Can we do this differently?
+      ".dll",
+    };
+
     private void WriteBuildFile(NugetRepositoryEntry entry, string id)
     {
+      var exports = StringArray(entry.LocalPackageSourceInfo.Package.Files.Where(f => _exportedExtensions.Contains(Path.GetExtension(f)))
+        .Select(f => $"current/{f}")
+        .Prepend("contentfiles.txt"));
+
       var content = $@"package(default_visibility = [""//visibility:public""])
 load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
 
-exports_files([""contentfiles.txt""])
+exports_files({exports})
 
 {CreateTarget(entry)}";
 
@@ -234,8 +247,6 @@ load(""@io_bazel_rules_dotnet//dotnet:defs.bzl"", ""core_import_library"")
 
       IEnumerable<string> Elems()
       {
-        yield return $@"exports_files(glob([""current/**"", ""{identity.Version}/**""]))";
-
         yield return $@"filegroup(
   name = ""content_files"",
   srcs = {StringArray(GetContentFiles(package).Select(v => $"{folder}/{v}"))},
