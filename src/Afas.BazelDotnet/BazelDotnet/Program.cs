@@ -27,7 +27,8 @@ namespace Afas.BazelDotnet
       app.Command("repository", repoCmd =>
       {
         var nugetConfig = repoCmd.Argument("nugetConfig", "The path to the Packages.Props file");
-        var tfmOption = repoCmd.Option("-t|--tfm", "The target framework to restore", CommandOptionType.SingleOrNoValue);
+        var nugetLockFile = repoCmd.Option("-l|--lock", "Nuget lock file", CommandOptionType.SingleOrNoValue);
+        var tfmOption = repoCmd.Option("-t|--tfm", "The target framework to restore", CommandOptionType.MultipleValue);
         var packageProps = repoCmd.Option("-p|--package", "Packages.Props files", CommandOptionType.MultipleValue);
         var importsOption = repoCmd.Option("-i|--imports", "Import files with dictionary of imported project labels (PackageName=Label)", CommandOptionType.MultipleValue);
 
@@ -35,8 +36,9 @@ namespace Afas.BazelDotnet
         {
           var packagePropsFilePaths = packageProps.Values.Select(v => Path.Combine(Directory.GetCurrentDirectory(), v)).ToArray();
           var nugetConfigFilePath = Path.Combine(Directory.GetCurrentDirectory(), nugetConfig.Value);
-          var tfm = tfmOption.HasValue() ? tfmOption.Value() : "net5.0";
-          await WriteRepository(tfm, packagePropsFilePaths, nugetConfigFilePath, importsOption.Values).ConfigureAwait(false);
+          var nugetLockFilePath = nugetLockFile.HasValue() ? Path.Combine(Directory.GetCurrentDirectory(), nugetLockFile.Value()) : null;
+          IReadOnlyList<string> tfms = tfmOption.HasValue() ? tfmOption.Values : new [] { "net5.0" };
+          await WriteRepository(tfms, packagePropsFilePaths, nugetConfigFilePath, nugetLockFilePath, importsOption.Values).ConfigureAwait(false);
           return 0;
         });
       });
@@ -130,7 +132,7 @@ namespace Afas.BazelDotnet
         !arg.version.EndsWith("-local-dev", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static async Task WriteRepository(string tfm, IEnumerable<string> packagePropsFiles, string nugetConfig, IReadOnlyCollection<string> importMappings = null)
+    private static async Task WriteRepository(IReadOnlyList<string> tfms, IEnumerable<string> packagePropsFiles, string nugetConfig, string nugetLockFilePath, IReadOnlyCollection<string> importMappings = null)
     {
       // Note: no conlict resolution. Maybe we can add them in the dep graph. For now multiple Packages.Props is not really a use case anymore
       (string, string)[] deps = packagePropsFiles
@@ -142,7 +144,7 @@ namespace Afas.BazelDotnet
         .ToLookup(i => i.project, i => (i.target, i.configSetting), StringComparer.OrdinalIgnoreCase);
 
       await new NugetRepositoryGenerator(nugetConfig, imports)
-        .WriteRepository(tfm, "win-x64", deps)
+        .WriteRepository(tfms, "win-x64", deps, nugetLockFilePath)
         .ConfigureAwait(false);
     }
 

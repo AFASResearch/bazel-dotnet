@@ -13,24 +13,12 @@ namespace Afas.BazelDotnet.Nuget
   internal class NugetRepositoryEntryBuilder
   {
     private readonly ManagedCodeConventions _conventions;
-    private readonly List<FrameworkRuntimePair> _targets;
+    private readonly IReadOnlyCollection<FrameworkRuntimePair> _targets;
 
-    public NugetRepositoryEntryBuilder(ManagedCodeConventions conventions)
+    public NugetRepositoryEntryBuilder(ManagedCodeConventions conventions, IReadOnlyCollection<FrameworkRuntimePair> targets)
     {
       _conventions = conventions;
-      _targets = new List<FrameworkRuntimePair>();
-    }
-
-    public NugetRepositoryEntryBuilder WithTarget(FrameworkRuntimePair target)
-    {
-      _targets.Add(target);
-      return this;
-    }
-
-    public NugetRepositoryEntryBuilder WithTarget(NuGetFramework target)
-    {
-      _targets.Add(new FrameworkRuntimePair(target, runtimeIdentifier: null));
-      return this;
+      _targets = targets;
     }
 
     public NugetRepositoryEntry ResolveGroups(LocalPackageSourceInfo localPackageSourceInfo)
@@ -79,9 +67,19 @@ namespace Afas.BazelDotnet.Nuget
           new PatternDefinition("analyzers/{assembly}")
         });
 
+        // "2.0.0/build/netstandard2.0/ref/netstandard.dll"
+        var netstandardRefAssemblies = new PatternSet(_conventions.Properties, new []
+        {
+          new PatternDefinition("build/{tfm}/ref/{any?}"),
+        }, new[]
+        {
+          new PatternDefinition("build/{tfm}/ref/{assembly}"),
+        });
+
         AddIfNotNull(entry.RefItemGroups, target.Framework,
           collection.FindBestItemGroup(criteria,
             _conventions.Patterns.CompileRefAssemblies,
+            netstandardRefAssemblies,
             _conventions.Patterns.CompileLibAssemblies)
           ?.Items);
 
@@ -146,7 +144,7 @@ namespace Afas.BazelDotnet.Nuget
       newEntry.DependencyGroups.AddRange(entry.DependencyGroups);
       if(frameworkOverride != null)
       {
-        newEntry.RefItemGroups.Add(new FrameworkSpecificGroup(_targets.Single().Framework, new []
+        newEntry.RefItemGroups.Add(new FrameworkSpecificGroup(_targets.First().Framework, new []
         {
           frameworkOverride,
         }));

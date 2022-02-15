@@ -16,28 +16,23 @@ using NuGet.Repositories;
 using NuGet.RuntimeModel;
 using NuGet.Versioning;
 
+#nullable enable
+
 namespace Afas.BazelDotnet.Nuget
 {
   internal class TransitiveDependencyResolver
   {
-    private const string _rootProjectName = "Root";
-    private const string _rootProjectVersion = "1.0.0";
-
+    private readonly RootProject _rootProject;
     private readonly RemoteWalkContext _context;
     private readonly LocalPackageExtractor _localPackageExtractor;
-    private readonly List<LibraryRange> _packages;
+    private readonly NuGetv3LocalRepository _v3LocalRepository;
 
-    public TransitiveDependencyResolver(ISettings settings, ILogger logger, SourceCacheContext cache)
+    public TransitiveDependencyResolver(ISettings settings, ILogger logger, SourceCacheContext cache, RootProject rootProject)
     {
-      _context = CreateRemoteWalkContext(settings, cache, logger);
-      _localPackageExtractor = new LocalPackageExtractor(settings, _context.Logger, _context.CacheContext);
-      _packages = new List<LibraryRange>();
-    }
-
-    public TransitiveDependencyResolver AddPackageReference(string package, string version)
-    {
-      _packages.Add(new LibraryRange(package, VersionRange.Parse(version), LibraryDependencyTarget.Package));
-      return this;
+      _rootProject = rootProject;
+      _context = CreateRemoteWalkContext(settings, cache, logger, rootProject);
+      _v3LocalRepository = new NuGetv3LocalRepository(SettingsUtility.GetGlobalPackagesFolder(settings), new LocalPackageFileCache(), false);
+      _localPackageExtractor = new LocalPackageExtractor(settings, _v3LocalRepository, _context.Logger, _context.CacheContext);
     }
 
     public async Task<RestoreTargetGraph> ResolveFrameworkReference(string id, string version, string targetFramework)
@@ -46,72 +41,52 @@ namespace Afas.BazelDotnet.Nuget
       return await GetIndependentGraph(id, version, nugetTargetFramework, _context).ConfigureAwait(false);
     }
 
-    public async Task<RestoreTargetGraph> ResolveGraph(string targetFramework, string targetRuntime = null)
+    public async Task<IReadOnlyList<RestoreTargetGraph>> ResolveGraphs()
     {
-      var nugetTargetFramework = NuGetFramework.Parse(targetFramework);
-      PrepareRootProject(nugetTargetFramework);
+      var graphs = new List<RestoreTargetGraph>();
 
-      var independentGraph = await GetIndependentGraph(_rootProjectName, _rootProjectVersion, nugetTargetFramework, _context).ConfigureAwait(false);
-
-      if(string.IsNullOrEmpty(targetRuntime))
+      foreach(var target in _rootProject.Targets)
       {
-        return independentGraph;
+        var independentGraph = await GetIndependentGraph(_rootProject.Name, _rootProject.Version, target.Framework, _context).ConfigureAwait(false);
+
+        graphs.Add(independentGraph);
+
+        if(string.IsNullOrEmpty(target.RuntimeIdentifier))
+        {
+          continue;
+        }
+
+        // We could target multiple runtimes with RuntimeGraph.Merge
+        var platformSpecificGraph = await GetPlatformSpecificGraph(independentGraph, _rootProject.Name, _rootProject.Version,
+            target.Framework, target.RuntimeIdentifier, _context, _localPackageExtractor)
+          .ConfigureAwait(false);
+
+        graphs.Add(platformSpecificGraph);
       }
 
-      // We could target multiple runtimes with RuntimeGraph.Merge
-      var platformSpecificGraph = await GetPlatformSpecificGraph(independentGraph, _rootProjectName, _rootProjectVersion,
-          nugetTargetFramework, targetRuntime, _context, _localPackageExtractor)
-        .ConfigureAwait(false);
-
-      return platformSpecificGraph;
+      return graphs;
     }
 
-    public async Task<IReadOnlyCollection<LocalPackageSourceInfo>> DownloadPackages(RestoreTargetGraph dependencyGraph)
+    public async Task<IReadOnlyCollection<LocalPackageSourceInfo>> DownloadPackages(IEnumerable<RestoreTargetGraph> dependencyGraphs)
     {
-      return await Task.WhenAll(dependencyGraph.Flattened
-        .Where(i => !string.Equals(i.Key.Name, _rootProjectName, StringComparison.OrdinalIgnoreCase))
+      return await Task.WhenAll(dependencyGraphs.SelectMany(g => g.Flattened)
+        .Distinct(GraphItemKeyComparer<RemoteResolveResult>.Instance)
+        .Where(i => !string.Equals(i.Key.Name, _rootProject.Name, StringComparison.OrdinalIgnoreCase))
         .Select(DownloadPackage));
     }
 
     public Task<LocalPackageSourceInfo> DownloadPackage(GraphItem<RemoteResolveResult> item) =>
       _localPackageExtractor.EnsureLocalPackage(item.Data.Match.Provider, ToPackageIdentity(item.Data.Match));
 
-    private void PrepareRootProject(NuGetFramework targetFramework)
+    public string RenderLockFile(IEnumerable<RestoreTargetGraph> targetGraphs)
     {
-      PackageSpec project = new PackageSpec(new List<TargetFrameworkInformation>
-      {
-        new TargetFrameworkInformation
-        {
-          FrameworkName = targetFramework,
-        }
-      });
-      project.Name = _rootProjectName;
-      project.Version = NuGetVersion.Parse(_rootProjectVersion);
-
-      project.Dependencies = _packages.Select(package => new LibraryDependency
-        {
-          LibraryRange = package,
-          Type = LibraryDependencyType.Build,
-          IncludeType = LibraryIncludeFlags.None,
-          SuppressParent = LibraryIncludeFlags.All,
-          AutoReferenced = true,
-          GeneratePathProperty = false,
-        })
-        .ToList();
-
-      // In case we get re-used we clear the previous value first
-      _context.ProjectLibraryProviders.Clear();
-      _context.ProjectLibraryProviders.Add(new PackageSpecReferenceDependencyProvider(new[]
-      {
-        new ExternalProjectReference(
-          project.Name,
-          project,
-          msbuildProjectPath: null,
-          projectReferences: Enumerable.Empty<string>()),
-      }, _context.Logger));
+      var builder = new LockFileBuilder(lockFileVersion: 2, _context.Logger, new());
+      var lockFile = builder.CreateLockFile(previousLockFile: new LockFile(), _rootProject.PackageSpec, targetGraphs, new [] { _v3LocalRepository }, _context);
+      var nugetLockFile = new PackagesLockFileBuilder().CreateNuGetLockFile(lockFile);
+      return PackagesLockFileFormat.Render(nugetLockFile);
     }
 
-    private RemoteWalkContext CreateRemoteWalkContext(ISettings settings, SourceCacheContext cache, ILogger logger)
+    private static RemoteWalkContext CreateRemoteWalkContext(ISettings settings, SourceCacheContext cache, ILogger logger, RootProject rootProject)
     {
       // nuget.org etc.
       var globalPackagesFolder = SettingsUtility.GetGlobalPackagesFolder(settings);
@@ -133,6 +108,34 @@ namespace Afas.BazelDotnet.Nuget
           fileCache: new LocalPackageFileCache(),
           ignoreWarning: false,
           isFallbackFolderSource: false));
+      }
+
+      context.ProjectLibraryProviders.Add(new PackageSpecReferenceDependencyProvider(new[]
+      {
+        new ExternalProjectReference(
+          rootProject.Name,
+          rootProject.PackageSpec,
+          msbuildProjectPath: null,
+          projectReferences: Enumerable.Empty<string>()),
+      }, context.Logger));
+
+      if(rootProject.IsLockFileValid)
+      {
+        // pass lock file details down to generate restore graph
+        foreach (var target in rootProject.NugetLockFile.Targets)
+        {
+          var libraries = target.Dependencies
+            .Where(dep => dep.Type != PackageDependencyType.Project)
+            .Select(dep => new LibraryIdentity(dep.Id, dep.ResolvedVersion, LibraryType.Package))
+            .ToList();
+
+          // TODO clean up
+          libraries.Add(new LibraryIdentity("Microsoft.NETCore.App.Ref", new NuGetVersion(target.TargetFramework.Version), LibraryType.Package));
+          libraries.Add(new LibraryIdentity("Microsoft.AspNetCore.App.Ref", new NuGetVersion(target.TargetFramework.Version), LibraryType.Package));
+
+          // add lock file libraries into RemoteWalkContext so that it can be used during restore graph generation
+          context.LockFileLibraries.Add(new LockFileCacheKey(target.TargetFramework, target.RuntimeIdentifier), libraries);
+        }
       }
 
       return context;
@@ -179,7 +182,7 @@ namespace Afas.BazelDotnet.Nuget
         resultWin
       }, context, context.Logger, framework, runtimeIdentifier);
 
-      async Task<RuntimeGraph> GetRuntimeGraphTask(GraphItem<RemoteResolveResult> item)
+      async Task<RuntimeGraph?> GetRuntimeGraphTask(GraphItem<RemoteResolveResult> item)
       {
         var packageIdentity = ToPackageIdentity(item.Data.Match);
 
