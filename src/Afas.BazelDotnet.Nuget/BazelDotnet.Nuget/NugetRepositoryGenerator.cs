@@ -115,7 +115,7 @@ string_flag(
       var runtimeGraph = dependencyGraphs.Select(g => g.RuntimeGraph).Aggregate(RuntimeGraph.Merge);
       var entryBuilder = new NugetRepositoryEntryBuilder(new ManagedCodeConventions(runtimeGraph), rootProject.Targets);
 
-      var localPackages = await dependencyGraphResolver.DownloadPackages(dependencyGraphs).ConfigureAwait(false);
+      var localPackages = await dependencyGraphResolver.DownloadPackages(dependencyGraphs.Take(2)).ConfigureAwait(false);
       var entries = localPackages.Select(entryBuilder.ResolveGroups).ToArray();
 
       var (frameworkEntries, frameworkOverrides) = await new FrameworkDependencyResolver(dependencyGraphResolver)
