@@ -95,6 +95,8 @@ namespace Afas.BazelDotnet.Nuget
         }
       }
 
+      File.WriteAllText("BUILD", "");
+
       File.WriteAllText("symlinks_manifest", string.Join("\n", symlinks
         .Select(sl => $@"{sl.link} {sl.target}")));
 

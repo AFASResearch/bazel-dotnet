@@ -41,6 +41,8 @@ namespace Afas.BazelDotnet.Project
 
     public string ReadPropertyValue(string name) => _document.Descendants(name).LastOrDefault()?.Value;
 
+    public bool IsWebSdk => string.Equals(_document.Root?.Attribute("Sdk")?.Value, "Microsoft.NET.Sdk.Web");
+
     public CsProjectFileDefinition Deserialize(Func<string, string> csprojToLabel,
       IReadOnlyDictionary<string, string> importLabels, string projectFilePath)
     {

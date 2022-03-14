@@ -165,6 +165,14 @@ resources.append(""{name}"")";
     {
       var optionalProperties = string.Empty;
 
+      if(_csProjectFileDefinition.IsWebSdk)
+      {
+        optionalProperties += @"
+  runtime_properties = {
+    ""System.GC.Server"": ""true""
+  },";
+      }
+
       if(TestOnly)
       {
         optionalProperties += @"
