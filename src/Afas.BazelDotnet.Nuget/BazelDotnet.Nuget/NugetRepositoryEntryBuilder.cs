@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using NuGet.Client;
+using NuGet.Common;
 using NuGet.ContentModel;
 using NuGet.Frameworks;
 using NuGet.Packaging;
@@ -12,11 +13,13 @@ namespace Afas.BazelDotnet.Nuget
 {
   internal class NugetRepositoryEntryBuilder
   {
+    private readonly ILogger _logger;
     private readonly ManagedCodeConventions _conventions;
     private readonly List<FrameworkRuntimePair> _targets;
 
-    public NugetRepositoryEntryBuilder(ManagedCodeConventions conventions)
+    public NugetRepositoryEntryBuilder(ILogger logger, ManagedCodeConventions conventions)
     {
+      _logger = logger;
       _conventions = conventions;
       _targets = new List<FrameworkRuntimePair>();
     }
@@ -141,7 +144,7 @@ namespace Afas.BazelDotnet.Nuget
 
     public NugetRepositoryEntry BuildFrameworkOverride(NugetRepositoryEntry entry, string frameworkOverride)
     {
-      Console.WriteLine($"Overwriting {entry.LocalPackageSourceInfo.Package.Id}");
+      _logger.LogInformation($"Overwriting {entry.LocalPackageSourceInfo.Package.Id}");
       var newEntry = new NugetRepositoryEntry(entry.LocalPackageSourceInfo);
       newEntry.DependencyGroups.AddRange(entry.DependencyGroups);
       if(frameworkOverride != null)

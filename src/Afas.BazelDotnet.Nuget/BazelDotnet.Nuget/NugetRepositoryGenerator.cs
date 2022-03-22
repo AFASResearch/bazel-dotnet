@@ -29,9 +29,13 @@ namespace Afas.BazelDotnet.Nuget
     private async Task<NugetRepositoryEntry[]> ResolveLocalPackages(string targetFramework, string targetRuntime,
       IEnumerable<(string package, string version)> packageReferences)
     {
-      ILogger logger = new ConsoleLogger();
+      // allow interactions for 2 factor authentication. CI scenario should never hit this.
+      bool interactive = true;
+
+      // prevent verbose logging when there could be interactive 2 factor output shown to the user.
+      ILogger logger = new ConsoleLogger(interactive ? LogLevel.Minimal : LogLevel.Debug);
       var settings = Settings.LoadSpecificSettings(Path.GetDirectoryName(_nugetConfig), Path.GetFileName(_nugetConfig));
-      DefaultCredentialServiceUtility.SetupDefaultCredentialService(logger, nonInteractive: true);
+      DefaultCredentialServiceUtility.SetupDefaultCredentialService(logger, nonInteractive: !interactive);
 
       // ~/.nuget/packages
       using var cache = new SourceCacheContext();
@@ -46,7 +50,7 @@ namespace Afas.BazelDotnet.Nuget
       var dependencyGraph = await dependencyGraphResolver.ResolveGraph(targetFramework, targetRuntime).ConfigureAwait(false);
       var localPackages = await dependencyGraphResolver.DownloadPackages(dependencyGraph).ConfigureAwait(false);
 
-      var entryBuilder = new NugetRepositoryEntryBuilder(dependencyGraph.Conventions)
+      var entryBuilder = new NugetRepositoryEntryBuilder(logger, dependencyGraph.Conventions)
           .WithTarget(new FrameworkRuntimePair(NuGetFramework.Parse(targetFramework), targetRuntime));
 
       var entries = localPackages.Select(entryBuilder.ResolveGroups).ToArray();
@@ -104,7 +108,11 @@ namespace Afas.BazelDotnet.Nuget
 for /F ""usebackq tokens=1,2 delims= "" %%i in (""symlinks_manifest"") do mklink /J ""%%i"" ""%%j""
 exit /b %errorlevel%
 ");
-      var proc = Process.Start(new ProcessStartInfo("cmd.exe", "/C link.cmd"));
+      var proc = Process.Start(new ProcessStartInfo("cmd.exe", "/C link.cmd")
+      {
+        RedirectStandardOutput = true,
+      });
+      proc.StandardOutput.ReadToEnd();
       proc.WaitForExit();
 
       if(proc.ExitCode != 0)
