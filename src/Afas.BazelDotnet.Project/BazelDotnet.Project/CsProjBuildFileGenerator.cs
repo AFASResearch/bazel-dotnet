@@ -52,9 +52,14 @@ namespace Afas.BazelDotnet.Project
         .Where(p => !p.Contains("bazel-"))
         .ToArray();
 
-      await Task.WhenAll(files.Select(projectFile => Task.Run(() =>
+      files = await Task.WhenAll(files.Select(projectFile => Task.Run(() =>
       {
         var definition = FindAndParseProjectFile(_workspace, projectFile);
+
+        if(definition.ReadPropertyValue("TargetFramework")?.Contains("netstandard") == true)
+        {
+          return null;
+        }
 
         // only write to the file when we have changes so we do not introduce git diff's
         WriteFileIfChanged(
@@ -63,11 +68,14 @@ namespace Afas.BazelDotnet.Project
             .Visibility(GetVisibility(projectFile))
             .Build()
             .Serialize(_appendString));
+
+        return projectFile;
       }))).ConfigureAwait(false);
 
       if(!string.IsNullOrEmpty(exportsFileName))
       {
         var values = files
+          .Where(f => !string.IsNullOrEmpty(f))
           .ToDictionary(Path.GetFileNameWithoutExtension, ToLabel, StringComparer.OrdinalIgnoreCase)
           .Select(l => $"{l.Key}={l.Value}");
         File.WriteAllText(exportsFileName, $"{string.Join("\n", values)}");
