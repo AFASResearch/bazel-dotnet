@@ -7,7 +7,7 @@ This tool is used in conjunction with [AFASResearch/rules_dotnet](https://github
 ### repository
 Generate the external nuget_repository in the current working directory.
 ```
-BazelDotnet.exe repository [path to]/nuget.config [-p [path to]/Packages.Props, ...] [--tfm=net5.0]
+BazelDotnet.exe repository [path to]/nuget.config [-p [path to]/Packages.Props, ...] [--tfm=net6.0]
 ```
 
 TODO

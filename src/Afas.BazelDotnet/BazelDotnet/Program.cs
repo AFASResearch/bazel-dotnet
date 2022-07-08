@@ -35,7 +35,7 @@ namespace Afas.BazelDotnet
         {
           var packagePropsFilePaths = packageProps.Values.Select(v => Path.Combine(Directory.GetCurrentDirectory(), v)).ToArray();
           var nugetConfigFilePath = Path.Combine(Directory.GetCurrentDirectory(), nugetConfig.Value);
-          var tfm = tfmOption.HasValue() ? tfmOption.Value() : "net5.0";
+          var tfm = tfmOption.HasValue() ? tfmOption.Value() : "net6.0";
           await WriteRepository(tfm, packagePropsFilePaths, nugetConfigFilePath, importsOption.Values).ConfigureAwait(false);
           return 0;
         });
