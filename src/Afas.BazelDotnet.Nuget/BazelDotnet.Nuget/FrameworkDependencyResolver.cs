@@ -19,6 +19,9 @@ namespace Afas.BazelDotnet.Nuget
     {
       ["Microsoft.NETCore.App"] = "Microsoft.NETCore.App.Ref",
       ["Microsoft.AspNetCore.App"] = "Microsoft.AspNetCore.App.Ref",
+      ["Microsoft.WindowsDesktop.App"] = "Microsoft.WindowsDesktop.App.Ref",
+      ["Microsoft.WindowsDesktop.App.WPF"] = "Microsoft.WindowsDesktop.App.Ref",
+      ["Microsoft.WindowsDesktop.App.WindowsForms"] = "Microsoft.WindowsDesktop.App.Ref",
     };
 
     private readonly TransitiveDependencyResolver _dependencyResolver;
