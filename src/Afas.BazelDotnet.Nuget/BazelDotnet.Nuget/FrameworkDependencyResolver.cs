@@ -40,7 +40,7 @@ namespace Afas.BazelDotnet.Nuget
         throw new Exception($"Unsupported targetFramework {targetFramework}");
       }
 
-      return $"{match.Groups[1].Value}.0";
+      return $"{match.Groups[1].Value}.*";
     }
 
     public async Task<(IReadOnlyCollection<NugetRepositoryEntry> entries, IReadOnlyDictionary<string, string> overrides)> ResolveFrameworkPackages(
