@@ -19,9 +19,9 @@ namespace Afas.BazelDotnet.Nuget
     {
       ["Microsoft.NETCore.App"] = "Microsoft.NETCore.App.Ref",
       ["Microsoft.AspNetCore.App"] = "Microsoft.AspNetCore.App.Ref",
-      ["Microsoft.WindowsDesktop.App"] = "Microsoft.WindowsDesktop.App.Ref",
-      ["Microsoft.WindowsDesktop.App.WPF"] = "Microsoft.WindowsDesktop.App.Ref",
-      ["Microsoft.WindowsDesktop.App.WindowsForms"] = "Microsoft.WindowsDesktop.App.Ref",
+      // ["Microsoft.WindowsDesktop.App"] = "Microsoft.WindowsDesktop.App.Ref",
+      // ["Microsoft.WindowsDesktop.App.WPF"] = "Microsoft.WindowsDesktop.App.Ref",
+      // ["Microsoft.WindowsDesktop.App.WindowsForms"] = "Microsoft.WindowsDesktop.App.Ref",
     };
 
     private readonly TransitiveDependencyResolver _dependencyResolver;
@@ -152,7 +152,7 @@ namespace Afas.BazelDotnet.Nuget
         // Implicit dependency of al netcoreapp projects
         .Prepend(new FrameworkReference("Microsoft.NETCore.App"))
         .ToArray();
-      return frameworkRefs.Select(r => _frameworkReferenceTargetPackMap[r.Name]);
+      return frameworkRefs.Where(r => _frameworkReferenceTargetPackMap.ContainsKey(r.Name)).Select(r => _frameworkReferenceTargetPackMap[r.Name]);
     }
 
     private NugetRepositoryEntry BuildEntry(
