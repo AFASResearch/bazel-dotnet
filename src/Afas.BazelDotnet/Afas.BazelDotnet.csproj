@@ -10,6 +10,7 @@
     <Company>AFAS Software B.V.</Company>
     <Product>Profit Focus</Product>
     <RootNamespace>Afas</RootNamespace>
+    <RollForward>Major</RollForward>
   </PropertyGroup>
 
   <ItemGroup>
