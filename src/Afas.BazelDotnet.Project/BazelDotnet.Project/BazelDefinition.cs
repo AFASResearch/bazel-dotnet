@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Afas.BazelDotnet.Project
@@ -163,26 +164,32 @@ resources.append(""{name}"")";
 
     private string WriteRule(string appendString)
     {
-      var optionalProperties = string.Empty;
+      var optionalProperties = new StringBuilder();
 
       if(_csProjectFileDefinition.IsWebSdk)
       {
-        optionalProperties += @"
+        optionalProperties.Append(@"
   runtime_properties = {
     ""System.GC.Server"": ""true""
-  },";
+  },");
       }
 
       if(TestOnly)
       {
-        optionalProperties += @"
-  testonly = True,";
+        optionalProperties.Append(@"
+  testonly = True,");
       }
 
       if(string.Equals(_csProjectFileDefinition.ReadPropertyValue("Nullable"), "enable", StringComparison.OrdinalIgnoreCase))
       {
-        optionalProperties += @"
-  nullable = True,";
+        optionalProperties.Append(@"
+  nullable = True,");
+      }
+
+      if(_csProjectFileDefinition.ReadItems("AdditionalFiles") is { } additionalFiles)
+      {
+        optionalProperties.Append($@"
+  additional_files = {additionalFiles},");
       }
 
       var srcs = _csProjectFileDefinition.ReadPropertyValue("BazelSrcs");

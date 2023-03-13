@@ -41,6 +41,42 @@ namespace Afas.BazelDotnet.Project
 
     public string ReadPropertyValue(string name) => _document.Descendants(name).LastOrDefault()?.Value;
 
+    public string? ReadItems(string name)
+    {
+      var includes = new List<string>();
+      var excludes = new List<string>
+      {
+        "**/obj/**",
+        "**/bin/**",
+      };
+
+      foreach(var item in _document.Descendants(name))
+      {
+        var include = item.Attribute("Include")?.Value ?? item.Attribute("Update")?.Value;
+        var remove = item.Attribute("Remove")?.Value;
+
+        if(include != null)
+        {
+          includes.Add(include);
+        }
+
+        if(remove != null)
+        {
+          excludes.Add(remove);
+        }
+      }
+
+      if(includes.Count == 0)
+      {
+        return null;
+      }
+
+      return $"glob([{string.Join(", ", includes.Select(Quote))}], exclude = [{string.Join(", ", excludes.Select(Quote))}])";
+    }
+
+    private static string Quote(string n) => $@"""{n.Replace('\\', '/')}""";
+
+
     public bool IsWebSdk => string.Equals(_document.Root?.Attribute("Sdk")?.Value, "Microsoft.NET.Sdk.Web");
 
     public CsProjectFileDefinition Deserialize(Func<string, string> csprojToLabel,
