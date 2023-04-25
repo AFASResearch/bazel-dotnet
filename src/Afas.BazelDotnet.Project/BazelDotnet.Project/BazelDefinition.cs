@@ -57,12 +57,12 @@ namespace Afas.BazelDotnet.Project
 
     public bool TestOnly { get; }
 
-    public string Serialize(string appendString)
+    public string Serialize()
     {
       // load
       // package
       // rules
-      return Regex.Replace(WriteRule(appendString), "(?<!\r)\n", "\r\n");
+      return Regex.Replace(WriteRule(), "(?<!\r)\n", "\r\n");
     }
 
     private IEnumerable<string> GetUsedMethods()
@@ -162,7 +162,7 @@ resources.append(""{name}"")";
       return $@"glob([{string.Join(", ", DataFiles.Select(Quote))}], exclude = [""**/obj/**"", ""**/bin/**""])";
     }
 
-    private string WriteRule(string appendString)
+    private string WriteRule()
     {
       var optionalProperties = new StringBuilder();
 
@@ -195,12 +195,6 @@ resources.append(""{name}"")";
       var srcs = _csProjectFileDefinition.ReadPropertyValue("BazelSrcs");
       var srcsValue = string.IsNullOrEmpty(srcs) ? string.Join(",\n", SrcPatterns) : "srcs";
 
-      var processedAppendString = appendString == null ? null :
-        @$"
-
-name = ""{Label}""
-{appendString}";
-
       return
         $@"{RenderLoad()}resources = []{srcs}
 {RenderResources()}
@@ -222,7 +216,7 @@ filegroup(
   ],
   dotnet_context_data = ""//:afas_context_data"",
   visibility = [""{Visibility}""]
-){processedAppendString}";
+)";
     }
 
     private static string Quote(string n) => $@"""{n}""";

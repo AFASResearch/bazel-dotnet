@@ -12,16 +12,15 @@ namespace Afas.BazelDotnet.Project
     private readonly string _workspace;
     private readonly string _nugetWorkspace;
     private readonly IReadOnlyDictionary<string, string> _importLabels;
-    private readonly string _appendString;
     private readonly IReadOnlyDictionary<string, string[]> _visibilityOptions;
 
-    public CsProjBuildFileGenerator(string workspace, string nugetWorkspace, IReadOnlyDictionary<string, string> imports, string appendString,
+    public CsProjBuildFileGenerator(string workspace, string nugetWorkspace,
+      IReadOnlyDictionary<string, string> imports,
       Dictionary<string, string[]> visibilityOptions)
     {
       _workspace = workspace;
       _nugetWorkspace = nugetWorkspace;
       _importLabels = imports;
-      _appendString = appendString;
       _visibilityOptions = visibilityOptions;
     }
 
@@ -39,12 +38,13 @@ namespace Afas.BazelDotnet.Project
       }
     }
 
-    public async Task GlobAllProjects(IReadOnlyCollection<string> searchFolders = null, string extension = "csproj", string exportsFileName = null)
+    public async Task GlobAllProjects(IReadOnlyCollection<string> searchFolders = null, string extension = "csproj")
     {
       var filesEnum = searchFolders?.Any() == true
         ? searchFolders
-          .Select(f => f.Replace('/', '\\'))
-          .SelectMany(f => Directory.EnumerateFiles(Path.Combine(_workspace, f), $"*.{extension}", SearchOption.AllDirectories))
+          .Select(f => Path.Combine(_workspace, f.Replace('/', '\\')))
+          .Where(Directory.Exists)
+          .SelectMany(d => Directory.EnumerateFiles(d, $"*.{extension}", SearchOption.AllDirectories))
         : Directory.EnumerateFiles(_workspace, $"*.{extension}", SearchOption.AllDirectories);
 
       var files = filesEnum
@@ -67,19 +67,10 @@ namespace Afas.BazelDotnet.Project
           new BazelDefinitionBuilder(definition, _nugetWorkspace)
             .Visibility(GetVisibility(projectFile))
             .Build()
-            .Serialize(_appendString));
+            .Serialize());
 
         return projectFile;
       }))).ConfigureAwait(false);
-
-      if(!string.IsNullOrEmpty(exportsFileName))
-      {
-        var values = files
-          .Where(f => !string.IsNullOrEmpty(f))
-          .ToDictionary(Path.GetFileNameWithoutExtension, ToLabel, StringComparer.OrdinalIgnoreCase)
-          .Select(l => $"{l.Key}={l.Value}");
-        File.WriteAllText(exportsFileName, $"{string.Join("\n", values)}");
-      }
     }
 
     private string GetVisibility(string projectFile)

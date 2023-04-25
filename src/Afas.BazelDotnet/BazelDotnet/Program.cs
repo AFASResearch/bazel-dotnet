@@ -46,10 +46,8 @@ namespace Afas.BazelDotnet
       {
         var pathOption = repoCmd.Option("-p|--path", "The path to the workspace root", CommandOptionType.SingleOrNoValue);
         var workspaceOption = repoCmd.Option("-w|--workspace", "The workspace to load nugets from", CommandOptionType.SingleOrNoValue);
-        var exportsOption = repoCmd.Option("-e|--exports", "Exports file with dictionary of provided project labels (PackageName=Label)", CommandOptionType.SingleOrNoValue);
         var importsOption = repoCmd.Option("-i|--imports", "Import files with dictionary of imported project labels (PackageName=Label)", CommandOptionType.MultipleValue);
         var searchOption = repoCmd.Option("--search", "Specify folders to search", CommandOptionType.MultipleValue);
-        var appendOption = repoCmd.Option("--append", "Specify a file which contents should be appended to each BUILD file.", CommandOptionType.MultipleValue);
         var visibilityOption = repoCmd.Option("-v|--visibility", "Specify {glob}={label} to define visibility for a set of generated BUILD files.", CommandOptionType.MultipleValue);
 
         repoCmd.HelpOption("-?|-h|--help");
@@ -71,8 +69,8 @@ namespace Afas.BazelDotnet
             }
           }
 
-          await GenerateBuildFiles(path, workspaceOption.Value(), exportsOption.Value(),
-            importsOption.Values, searchOption.Values, appendOption.Values, visibilityOption.Values).ConfigureAwait(false);
+          await GenerateBuildFiles(path, workspaceOption.Value(),
+            importsOption.Values, searchOption.Values, visibilityOption.Values).ConfigureAwait(false);
           return 0;
         });
       });
@@ -146,22 +144,20 @@ namespace Afas.BazelDotnet
         .ConfigureAwait(false);
     }
 
-    private static Task GenerateBuildFiles(string workspace, string nugetWorkspace, string exportsFileName,
-      IReadOnlyCollection<string> importMappings, IReadOnlyCollection<string> searchFolders,
-      IReadOnlyCollection<string> appendOptionValues, IReadOnlyCollection<string> visibilityOptionValues)
+    private static Task GenerateBuildFiles(string workspace, string nugetWorkspace,
+      IReadOnlyCollection<string> importMappings,
+      IReadOnlyCollection<string> searchFolders,
+      IReadOnlyCollection<string> visibilityOptionValues)
     {
       var imports = ParseImports(importMappings)
-        .ToDictionary(i => i.project, i => i.target);
-
-      var appendString = appendOptionValues?.Any() != true ? null :
-        string.Join("\r\n", appendOptionValues.Select(File.ReadAllText));
+        .ToDictionary(i => i.project, i => i.target, StringComparer.OrdinalIgnoreCase);
 
       var visibilityOptions = visibilityOptionValues
         .Select(o => o.Split('='))
         .ToDictionary(o => o[0].Replace('/', '\\'), o => o[1].Split(','), StringComparer.OrdinalIgnoreCase);
 
-      return new CsProjBuildFileGenerator(workspace, nugetWorkspace, imports, appendString, visibilityOptions)
-        .GlobAllProjects(searchFolders, exportsFileName: exportsFileName);
+      return new CsProjBuildFileGenerator(workspace, nugetWorkspace, imports, visibilityOptions)
+        .GlobAllProjects(searchFolders);
     }
 
     private static IEnumerable<(string project, string target, string configSetting)> ParseImports(IReadOnlyCollection<string> importMappings = null)
