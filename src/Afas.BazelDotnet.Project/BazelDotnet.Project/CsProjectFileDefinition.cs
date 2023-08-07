@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Xml.Linq;
 
 namespace Afas.BazelDotnet.Project
@@ -41,9 +42,11 @@ namespace Afas.BazelDotnet.Project
 
     public string ReadPropertyValue(string name) => _document.Descendants(name).LastOrDefault()?.Value;
 
-    public string? ReadItems(string name)
+    public (string? glob, string filegroups) ReadItems(string name, string visibility)
     {
       var includes = new List<string>();
+      var imports = new List<string>();
+      var exports = new List<string>();
       var excludes = new List<string>
       {
         "**/obj/**",
@@ -57,7 +60,31 @@ namespace Afas.BazelDotnet.Project
 
         if(include != null)
         {
-          includes.Add(include);
+          if(include.StartsWith("**"))
+          {
+            var filegroupName = include.Substring(3, include.IndexOfAny(new[] { '\\', '/' }, 3) - 3);
+            exports.Add($@"filegroup(
+  name = {Quote(filegroupName)},
+  srcs = glob([{Quote(include)}], exclude = [""**/obj/**"", ""**/bin/**""]),
+  visibility = [{Quote(visibility)}],
+)");
+            imports.Add(filegroupName);
+          }
+          else if(include.StartsWith(".."))
+          {
+            var folder = Path.GetDirectoryName(RelativeFilePath);
+            while(include.StartsWith(".."))
+            {
+              include = include.Substring(3);
+              folder = Path.GetDirectoryName(folder);
+            }
+
+            imports.Add($"//{Path.Combine(folder, include).Replace("\\", "/").Replace("/**/", ":").Replace("/*.json", "")}");
+          }
+          else
+          {
+            includes.Add(include);
+          }
         }
 
         if(remove != null)
@@ -66,12 +93,25 @@ namespace Afas.BazelDotnet.Project
         }
       }
 
-      if(includes.Count == 0)
+      var sb = new StringBuilder();
+
+      if(includes.Count > 0)
       {
-        return null;
+        sb.Append($"glob([{string.Join(", ", includes.Select(Quote))}], exclude = [{string.Join(", ", excludes.Select(Quote))}])");
       }
 
-      return $"glob([{string.Join(", ", includes.Select(Quote))}], exclude = [{string.Join(", ", excludes.Select(Quote))}])";
+      if(imports.Count > 0)
+      {
+        if(sb.Length > 0)
+        {
+          sb.Append(" + ");
+        }
+        sb.Append(@$"[
+    {string.Join(",\n    ", imports.Select(Quote))}
+  ]");
+      }
+
+      return (sb.Length > 0 ? sb.ToString() : null, string.Join("\n", exports));
     }
 
     private static string Quote(string n) => $@"""{n.Replace('\\', '/')}""";

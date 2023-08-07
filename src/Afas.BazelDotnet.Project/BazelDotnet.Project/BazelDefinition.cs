@@ -62,7 +62,7 @@ namespace Afas.BazelDotnet.Project
       // load
       // package
       // rules
-      return Regex.Replace(WriteRule(), "(?<!\r)\n", "\r\n");
+      return Regex.Replace(string.Join("", WriteRule()), "(?<!\r)\n", "\r\n");
     }
 
     private IEnumerable<string> GetUsedMethods()
@@ -162,41 +162,12 @@ resources.append(""{name}"")";
       return $@"glob([{string.Join(", ", DataFiles.Select(Quote))}], exclude = [""**/obj/**"", ""**/bin/**""])";
     }
 
-    private string WriteRule()
+    private IEnumerable<string> WriteRule()
     {
-      var optionalProperties = new StringBuilder();
-
-      if(_csProjectFileDefinition.IsWebSdk)
-      {
-        optionalProperties.Append(@"
-  runtime_properties = {
-    ""System.GC.Server"": ""true""
-  },");
-      }
-
-      if(TestOnly)
-      {
-        optionalProperties.Append(@"
-  testonly = True,");
-      }
-
-      if(string.Equals(_csProjectFileDefinition.ReadPropertyValue("Nullable"), "enable", StringComparison.OrdinalIgnoreCase))
-      {
-        optionalProperties.Append(@"
-  nullable = True,");
-      }
-
-      if(_csProjectFileDefinition.ReadItems("AdditionalFiles") is { } additionalFiles)
-      {
-        optionalProperties.Append($@"
-  additional_files = {additionalFiles},");
-      }
-
       var srcs = _csProjectFileDefinition.ReadPropertyValue("BazelSrcs");
-      var srcsValue = string.IsNullOrEmpty(srcs) ? string.Join(",\n", SrcPatterns) : "srcs";
+      var (additionalFiles, filegroups) = _csProjectFileDefinition.ReadItems("AdditionalFiles", Visibility);
 
-      return
-        $@"{RenderLoad()}resources = []{srcs}
+      yield return @$"{RenderLoad()}resources = []{srcs}
 {RenderResources()}
 
 filegroup(
@@ -204,11 +175,39 @@ filegroup(
   srcs = {RenderData()},
   visibility = [""{Visibility}""]
 )
-
+{filegroups}
 {Type}(
   name = ""{Label}"",
-  out = ""{OutputAssembly}"",{optionalProperties}
-  srcs = {srcsValue},
+  out = ""{OutputAssembly}"",";
+
+      if(_csProjectFileDefinition.IsWebSdk)
+      {
+        yield return @"
+  runtime_properties = {
+    ""System.GC.Server"": ""true""
+  },";
+      }
+
+      if(TestOnly)
+      {
+        yield return @"
+  testonly = True,";
+      }
+
+      if(string.Equals(_csProjectFileDefinition.ReadPropertyValue("Nullable"), "enable", StringComparison.OrdinalIgnoreCase))
+      {
+        yield return @"
+  nullable = True,";
+      }
+
+      if(additionalFiles != null)
+      {
+        yield return $@"
+  additional_files = {additionalFiles},";
+      }
+
+      yield return $@"
+  srcs = {(string.IsNullOrEmpty(srcs) ? string.Join(",\n", SrcPatterns) : "srcs")},
   resources = resources,
   data = ["":{Label}__data""],
   deps = [
