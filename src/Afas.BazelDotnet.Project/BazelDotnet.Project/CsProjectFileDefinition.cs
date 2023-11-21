@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
 namespace Afas.BazelDotnet.Project
@@ -42,7 +43,9 @@ namespace Afas.BazelDotnet.Project
 
     public string ReadPropertyValue(string name) => _document.Descendants(name).LastOrDefault()?.Value;
 
-    public (string? glob, string filegroups) ReadItems(string name, string visibility)
+    public IEnumerable<XElement> GetProperties(string name) => _document.Descendants(name);
+
+    public (string glob, string filegroups) ReadItems(string name, string visibility)
     {
       var includes = new List<string>();
       var imports = new List<string>();
@@ -114,8 +117,65 @@ namespace Afas.BazelDotnet.Project
       return (sb.Length > 0 ? sb.ToString() : null, string.Join("\n", exports));
     }
 
+    public string ReadTargets(string visibility)
+    {
+      var filegroups = new List<string>();
+
+      var targets = _document.Descendants("Target");
+
+      foreach(var target in targets)
+      {
+        switch(target.Attribute("Name")?.Value)
+        {
+          case "GenereateDefinitionsNupkg":
+            var filegroupName = Path.GetFileNameWithoutExtension(
+              GetNuspecFileValue(target.Attribute("Name")?.Value));
+
+            var globPatterns = new List<string>
+            {
+              "**/Definitions/*.json", "**/Definitions/*/*.json",
+              "**/Typed/*.json", "**/Typed/*/*.json",
+            };
+            var globPatternsString = string.Join(", ", globPatterns.Select(Quote));
+
+            filegroups.Add($@"filegroup(
+  name = {Quote(filegroupName)},
+  srcs = glob([{globPatternsString}]),
+  visibility = [{Quote(visibility)}]
+)");
+            break;
+          default:
+            continue;
+        }
+      }
+
+      return filegroups.Any() ? string.Join("\n", filegroups) : null;
+    }
+
     private static string Quote(string n) => $@"""{n.Replace('\\', '/')}""";
 
+    private string GetNuspecFileValue(string targetName)
+    {
+      var target = _document.Descendants("Target")
+        .FirstOrDefault(x => x.Attribute("Name")?.Value == targetName);
+
+      var execElement = target?.Element("Exec");
+
+      if(execElement is null)
+      {
+        return null;
+      }
+
+      var command = execElement.Attribute("Command")?.Value;
+
+      if(string.IsNullOrEmpty(command))
+      {
+        return null;
+      }
+
+      var nuspecFileMatch = Regex.Match(command, @"-p:NuspecFile=\.(\\|\/)([^ ]+\.nuspec)");
+      return nuspecFileMatch.Success ? nuspecFileMatch.Groups[2].Value : null;
+    }
 
     public bool IsWebSdk => string.Equals(_document.Root?.Attribute("Sdk")?.Value, "Microsoft.NET.Sdk.Web");
 

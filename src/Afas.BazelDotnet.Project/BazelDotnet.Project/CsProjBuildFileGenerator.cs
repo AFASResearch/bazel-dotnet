@@ -64,7 +64,7 @@ namespace Afas.BazelDotnet.Project
         // only write to the file when we have changes so we do not introduce git diff's
         WriteFileIfChanged(
           Path.Combine(Path.GetDirectoryName(projectFile), "BUILD"),
-          new BazelDefinitionBuilder(definition, _nugetWorkspace)
+          new BazelDefinitionBuilder(definition, _workspace, _nugetWorkspace)
             .Visibility(GetVisibility(projectFile))
             .Build()
             .Serialize());
