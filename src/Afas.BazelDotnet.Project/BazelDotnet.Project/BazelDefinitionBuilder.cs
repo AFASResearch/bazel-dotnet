@@ -9,12 +9,14 @@ namespace Afas.BazelDotnet.Project
   internal class BazelDefinitionBuilder
   {
     private readonly CsProjectFileDefinition _definition;
+    private readonly string _workspace;
     private readonly string _nugetWorkspace;
     private string _visibility = BazelDefinition.DefaultVisibility;
 
-    public BazelDefinitionBuilder(CsProjectFileDefinition definition, string nugetWorkspace)
+    public BazelDefinitionBuilder(CsProjectFileDefinition definition, string workspace, string nugetWorkspace)
     {
       _definition = definition;
+      _workspace = workspace;
       _nugetWorkspace = nugetWorkspace;
     }
 
@@ -25,7 +27,7 @@ namespace Afas.BazelDotnet.Project
         Path.GetFileNameWithoutExtension(_definition.RelativeFilePath),
         GetRuleType(_definition),
         $"{Path.GetFileNameWithoutExtension(_definition.RelativeFilePath)}.dll",
-        BuildSrcPatterns().ToArray(),
+        BuildSrcPatterns(_definition).ToArray(),
         GetDependencies().ToArray(),
         GetResources(),
         GetResx(),
@@ -65,10 +67,42 @@ namespace Afas.BazelDotnet.Project
       }
     }
 
-    private IEnumerable<string> BuildSrcPatterns()
+    private IEnumerable<string> BuildSrcPatterns(CsProjectFileDefinition definition)
     {
-      // { GetLabel(_definition.RelativeFilePath)}/
-      yield return $@"glob([""**/*.cs""], exclude = [""**/obj/**"", ""**/bin/**""])";
+      var importProjects = definition.GetProperties("Import")
+        .Select(x => x.Attribute("Project"))
+        .Where(x => x is not null)
+        .Select(x => $"[\"{BuildLabel(x.Value, definition.RelativeFilePath)}\"]")
+        .ToList();
+
+      var compileRemoves = definition.GetProperties("Compile")
+        .Select(x => x.Attribute("Remove"))
+        .Where(x => x is not null)
+        .Select(x => $"\"{x.Value.Replace("\\", "/")}\"")
+        .ToList();
+
+      var excludePatterns = new List<string> { "\"**/obj/**\"", "\"**/bin/**\"" };
+      excludePatterns.AddRange(compileRemoves);
+
+      var excludeList = string.Join(", ", excludePatterns);
+      var globPattern = $@"glob([""**/*.cs""], exclude = [{excludeList}])";
+
+      if(importProjects.Any())
+      {
+        string importProjectList = string.Join(" + ", importProjects);
+
+        yield return $@"{globPattern} + {importProjectList}";
+        yield break;
+      }
+
+      yield return globPattern;
+    }
+
+    private string BuildLabel(string projectPath, string definitionPath)
+    {
+      var fullPath = Path.Combine(Path.GetDirectoryName(definitionPath), Path.GetDirectoryName(projectPath));
+      string relativePath = Path.GetRelativePath(_workspace, fullPath).Replace('\\', '/');
+      return $"//{relativePath}";
     }
 
     private IEnumerable<string> BuildExternalDependencies()
