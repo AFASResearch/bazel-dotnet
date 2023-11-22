@@ -72,7 +72,7 @@ namespace Afas.BazelDotnet.Project
       var importProjects = definition.GetProperties("Import")
         .Select(x => x.Attribute("Project"))
         .Where(x => x is not null)
-        .Select(x => $"[\"{BuildLabel(x.Value)}\"]")
+        .Select(x => $"[\"{BuildLabel(x.Value, definition.RelativeFilePath)}\"]")
         .ToList();
 
       var compileRemoves = definition.GetProperties("Compile")
@@ -98,18 +98,9 @@ namespace Afas.BazelDotnet.Project
       yield return globPattern;
     }
 
-    private string BuildLabel(string projectPath)
+    private string BuildLabel(string projectPath, string definitionPath)
     {
-      var folderName = Path.GetDirectoryName(projectPath) ?? string.Empty;
-
-      string[] matchingDirectories = Directory.GetDirectories(_workspace, folderName, SearchOption.AllDirectories);
-
-      if(matchingDirectories.Length <= 0)
-      {
-        return string.Empty;
-      }
-
-      string fullPath = matchingDirectories[0];
+      var fullPath = Path.Combine(Path.GetDirectoryName(definitionPath), Path.GetDirectoryName(projectPath));
       string relativePath = Path.GetRelativePath(_workspace, fullPath).Replace('\\', '/');
       return $"//{relativePath}";
     }
