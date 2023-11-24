@@ -117,9 +117,10 @@ namespace Afas.BazelDotnet.Project
       return (sb.Length > 0 ? sb.ToString() : null, string.Join("\n", exports));
     }
 
-    public string ReadTargets(string visibility)
+    public (string, string) ReadTargets(string visibility)
     {
       var filegroups = new List<string>();
+      var coreLibaries = new List<string>();
 
       var targets = _document.Descendants("Target");
 
@@ -128,7 +129,7 @@ namespace Afas.BazelDotnet.Project
         switch(target.Attribute("Name")?.Value)
         {
           case "GenereateDefinitionsNupkg":
-            var filegroupName = Path.GetFileNameWithoutExtension(
+            var fileName = Path.GetFileNameWithoutExtension(
               GetNuspecFileValue(target.Attribute("Name")?.Value));
 
             var globPatterns = new List<string>
@@ -139,8 +140,17 @@ namespace Afas.BazelDotnet.Project
             var globPatternsString = string.Join(", ", globPatterns.Select(Quote));
 
             filegroups.Add($@"filegroup(
-  name = {Quote(filegroupName)},
+  name = {Quote(fileName + "__data")},
   srcs = glob([{globPatternsString}]),
+  visibility = [{Quote(visibility)}]
+)");
+            coreLibaries.Add($@"core_library(
+  name = {Quote(fileName)},
+  out = {Quote(fileName + ".dll")},
+  data = [{Quote(fileName + "__data")}],
+  # currently this produces an assembly.
+  deps = [{Quote("@nuget//microsoft.netcore.app.ref")}],
+  dotnet_context_data = {Quote("//:afas_context_data")},
   visibility = [{Quote(visibility)}]
 )");
             break;
@@ -149,7 +159,8 @@ namespace Afas.BazelDotnet.Project
         }
       }
 
-      return filegroups.Any() ? string.Join("\n", filegroups) : null;
+      return (filegroups.Any() ? string.Join("\n", filegroups) + "\n" : null,
+          coreLibaries.Any() ? string.Join("\n", coreLibaries) + "\n" : null);
     }
 
     private static string Quote(string n) => $@"""{n.Replace('\\', '/')}""";
