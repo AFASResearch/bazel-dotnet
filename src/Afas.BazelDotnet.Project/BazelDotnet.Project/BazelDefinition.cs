@@ -165,7 +165,8 @@ resources.append(""{name}"")";
     private IEnumerable<string> WriteRule()
     {
       var srcs = _csProjectFileDefinition.ReadPropertyValue("BazelSrcs");
-      var (additionalFiles, filegroups) = _csProjectFileDefinition.ReadItems("AdditionalFiles", Visibility);
+      var filegroups = _csProjectFileDefinition.ReadItems("FileGroup", Visibility).Item2;
+      var (additionalFiles, additionalFilegroups) = _csProjectFileDefinition.ReadItems("AdditionalFiles", Visibility);
       var (targetFilegroups, coreLibraries) = _csProjectFileDefinition.ReadTargets(Visibility);
 
       yield return @$"{RenderLoad()}resources = []{srcs}
@@ -176,7 +177,7 @@ filegroup(
   srcs = {RenderData()},
   visibility = [""{Visibility}""]
 )
-{filegroups}{targetFilegroups}{coreLibraries}
+{filegroups}{additionalFilegroups}{targetFilegroups}{coreLibraries}
 {Type}(
   name = ""{Label}"",
   out = ""{OutputAssembly}"",";

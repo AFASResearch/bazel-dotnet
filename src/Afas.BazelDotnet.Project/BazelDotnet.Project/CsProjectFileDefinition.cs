@@ -60,12 +60,16 @@ namespace Afas.BazelDotnet.Project
       {
         var include = item.Attribute("Include")?.Value ?? item.Attribute("Update")?.Value;
         var remove = item.Attribute("Remove")?.Value;
+        var filegroupName = item.Attribute("Name")?.Value;
 
         if(include != null)
         {
           if(include.StartsWith("**"))
           {
-            var filegroupName = include.Substring(3, include.IndexOfAny(new[] { '\\', '/' }, 3) - 3);
+            if(string.IsNullOrEmpty(filegroupName))
+            {
+              filegroupName = include.Substring(3, include.IndexOfAny(new[] { '\\', '/' }, 3) - 3);
+            }
             exports.Add($@"filegroup(
   name = {Quote(filegroupName)},
   srcs = glob([{Quote(include)}], exclude = [""**/obj/**"", ""**/bin/**""]),
