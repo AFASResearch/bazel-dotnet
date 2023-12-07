@@ -86,7 +86,12 @@ namespace Afas.BazelDotnet.Project
               folder = Path.GetDirectoryName(folder);
             }
 
-            imports.Add($"//{Path.Combine(folder, include).Replace("\\", "/").Replace("/**/", ":").Replace("/*.json", "")}");
+            var path = @$"//{Path.Combine(folder, include)
+              .Replace("\\", "/")
+              .Replace("/**/*.json", "")
+              .Replace("/*.json", "")
+              .Replace("/**/", ":")}";
+            imports.Add(path);
           }
           else
           {
