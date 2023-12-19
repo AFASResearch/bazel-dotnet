@@ -92,9 +92,31 @@ namespace Afas.BazelDotnet.Project
               .Replace("/*.json", "")
               .Replace("/**/", ":")}";
             imports.Add(path);
+
+            if(string.IsNullOrEmpty(filegroupName))
+            {
+              filegroupName = path;
+            }
+
+            exports.Add($@"filegroup(
+  name = {Quote(filegroupName)},
+  srcs = {Quote(path)},
+  visibility = [{Quote("visibility")}],
+)");
           }
           else
           {
+            if(string.IsNullOrEmpty(filegroupName))
+            {
+              filegroupName = include;
+            }
+
+            exports.Add($@"filegroup(
+  name = {Quote(filegroupName)},
+  srcs = {Quote(include)},
+  visibility = [{Quote(visibility)}],
+)");
+
             includes.Add(include);
           }
         }
