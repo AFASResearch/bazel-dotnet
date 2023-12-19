@@ -93,30 +93,25 @@ namespace Afas.BazelDotnet.Project
               .Replace("/**/", ":")}";
             imports.Add(path);
 
-            if(string.IsNullOrEmpty(filegroupName))
+            if(!string.IsNullOrEmpty(filegroupName))
             {
-              filegroupName = path;
-            }
-
-            exports.Add($@"filegroup(
+              exports.Add($@"filegroup(
   name = {Quote(filegroupName)},
-  srcs = {Quote(path)},
-  visibility = [{Quote("visibility")}],
+  srcs = [{Quote(include)}],
+  visibility = [{Quote(visibility)}],
 )");
+            }
           }
           else
           {
-            if(string.IsNullOrEmpty(filegroupName))
+            if(!string.IsNullOrEmpty(filegroupName))
             {
-              filegroupName = include;
-            }
-
-            exports.Add($@"filegroup(
+              exports.Add($@"filegroup(
   name = {Quote(filegroupName)},
-  srcs = {Quote(include)},
+  srcs = [{Quote(include)}],
   visibility = [{Quote(visibility)}],
 )");
-
+            }
             includes.Add(include);
           }
         }
