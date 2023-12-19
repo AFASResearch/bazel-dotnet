@@ -165,7 +165,7 @@ resources.append(""{name}"")";
     private IEnumerable<string> WriteRule()
     {
       var srcs = _csProjectFileDefinition.ReadPropertyValue("BazelSrcs");
-      var filegroups = _csProjectFileDefinition.ReadItems("FileGroup", Visibility).Item2;
+      var filegroups = _csProjectFileDefinition.ReadItems("FileGroup", "//visibility:public").Item2;
       var (additionalFiles, additionalFilegroups) = _csProjectFileDefinition.ReadItems("AdditionalFiles", Visibility);
 
       yield return @$"{RenderLoad()}resources = []{srcs}
